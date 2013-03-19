@@ -1,0 +1,12 @@
+language: python
+python:
+  - "2.6"
+  - "2.7"
+  - "3.2"
+  - "3.3"
+  - "pypy"
+script:
+  - python -m compileall -f .
+  - python -m mython.myparser mython/tests/test_my_grammar_0_0_2.my
+notifications:
+  irc: "irc.freenode.org#mython"
