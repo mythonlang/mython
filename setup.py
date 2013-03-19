@@ -4,7 +4,21 @@ from distutils.core import setup
 
 setup(
     name = "mython",
-    packages = ["mython"],
+    packages = [
+        "mython",
+        "mython.lang",
+        "mython.lang.python",
+        "mython.lang.python.python26",
+        "mython.lang.python.python27",
+        "mython.lang.python.python32",
+        "mython.lang.python.python33",
+        ],
+    package_data = {
+        "mython.lang.python.python26" : ["Grammar"],
+        "mython.lang.python.python27" : ["Grammar"],
+        "mython.lang.python.python32" : ["Grammar"],
+        "mython.lang.python.python33" : ["Grammar"],
+        },
     version = "0.0.2",
     description = "The Mython extensible variant of the Python programming "
     "language.",
