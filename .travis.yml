@@ -8,6 +8,6 @@ python:
 install: "pip install pgen2 --use-mirrors"
 script:
   - python -m compileall -f .
-  - python -m mython.myparser mython/tests/test_my_grammar_0_0_2.my
+  - python -m mython.myparser mython/tests/test_parser_0_0_2.my
 notifications:
   irc: "irc.freenode.org#mython"
