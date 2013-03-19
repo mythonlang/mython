@@ -3,7 +3,10 @@
 # Module imports
 
 import os
-import StringIO
+try:
+    import StringIO as io
+except ImportError:
+    import io
 import pprint
 
 import pgen2.parser
@@ -45,7 +48,7 @@ def pgen_compose (pgen, pgen_st1, pgen_st2, start_symbol,
     grammar3 = pgen.generateDfaGrammar(nfa_composed, start_symbol)
     pgen.translateLabels(grammar3, additional_tokens)
     pgen.generateFirstSets(grammar3)
-    grammar3[0] = map(tuple, grammar3[0])
+    grammar3[0] = tuple((tuple(dfa) for dfa in grammar3[0]))
     return pgen2.dfa.addAccelerators(tuple(grammar3))
 
 # ______________________________________________________________________
@@ -137,7 +140,9 @@ class MyParser(object):
         if "filename" not in env:
             env = env.copy()
             env["filename"] = filename
-        return self.parse_lineiter(open(filename).next, env)
+        with open(filename) as fileobj:
+            ret_val = self.parse_lineiter(fileobj.readline, env)
+        return ret_val
 
     def parse_string(self, src_str, env = None):
         if env is None:
@@ -145,7 +150,7 @@ class MyParser(object):
         if "filename" not in env:
             env = env.copy()
             env["filename"] = "<string>"
-        return self.parse_lineiter(StringIO.StringIO(src_str).next, env)
+        return self.parse_lineiter(io.StringIO(src_str).readline, env)
 
 # ______________________________________________________________________
 # Main (self-test) routine

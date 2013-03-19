@@ -9,9 +9,12 @@ Jonathan Riehl
 # ______________________________________________________________________
 # Module imports
 
+from __future__ import print_function
+
 import sys
 import re
 import tokenize
+import string
 import pprint
 
 import pgen2.tokenizer
@@ -22,7 +25,7 @@ from mython.trampoline import TokenStream
 # Module data
 
 tok_name = tokenize.tok_name.copy()
-BANG, MYEXPR, MYSUITE = (tokenize.N_TOKENS + count for count in xrange(3))
+BANG, MYEXPR, MYSUITE = (tokenize.N_TOKENS + count for count in range(3))
 tok_name[BANG] = 'BANG'
 tok_name[MYEXPR] = 'MYEXPR'
 tok_name[MYSUITE] = 'MYSUITE'
@@ -41,17 +44,7 @@ CLOSERS = {
     '[' : ']',
 }
 
-# ______________________________________________________________________
-# Compatibility layer 2.5/2.6
-
-if type(__builtins__) == dict:
-    define_next = "next" not in __builtins__.keys()
-else:
-    define_next = "next" not in __builtins__.__dict__.keys()
-
-if define_next:
-    def next (obj):
-        return obj.next()
+__DEBUG__ = False
 
 # ______________________________________________________________________
 # Class definitions.
@@ -65,7 +58,7 @@ class MythonReadliner (object):
         self.ws_pattern = re.compile("\\A(\\s)+")
 
     def __call__ (self):
-        # TODO Note that the read readline function takes an optional
+        # TODO Note that the real readline function takes an optional
         # size argument.  This should ideally be modified to be 100%
         # readline compatible.
         ret_val = "\n"
@@ -157,8 +150,9 @@ class MythonTokenStream (TokenStream):
         self.ws_pattern = re.compile("\\A(\\s+)")
         TokenStream.__init__(self, self.generate_tokens())
 
-    def make_token (self, tok_sym, tok_str, (start_line, start_col),
-                    (end_line, end_col), tok_ln):
+    def make_token (self, tok_sym, tok_str, start_pos, end_pos, tok_ln):
+        start_line, start_col = start_pos
+        end_line, end_col = end_pos
         ret_val = (tok_sym, tok_str,
                    (start_line, start_col + self.column_offset),
                    (end_line, end_col + self.column_offset), tok_ln)
@@ -189,7 +183,7 @@ class MythonTokenStream (TokenStream):
         tokenize module by Ka Ping Yee and others, licensed under the
         PSFL (see .../basil/thirdparty/PSF_LICENSE).
         """
-        namechars = tokenize.string.ascii_letters + '_'
+        namechars = string.ascii_letters + '_'
         numchars = '0123456789'
         while 1:
             line = self.readline()
@@ -378,7 +372,9 @@ class MythonTokenStream (TokenStream):
                         else:
                             yield self.make_token(tokenize.STRING, token, spos,
                                                   epos, line)
-                    elif initial in namechars:
+                    elif ((hasattr(initial, 'isidentifier') and
+                             initial.isidentifier()) or
+                            (initial in namechars)):
                         yield self.make_token(tokenize.NAME, token, spos, epos,
                                               line)
                     elif initial == '\\':
@@ -504,7 +500,7 @@ def scan_python_file (readline, generator_fn = None):
 
 # ______________________________________________________________________
 
-def mytokenize (readline, tokeneater=tokenize.printtoken):
+def mytokenize (readline, tokeneater=getattr(tokenize, 'printtoken', print)):
     """Backward compatible function for comparison with tokenize.tokenize()
 
     To do a comparison on a given file between the Python and Mython
@@ -527,7 +523,8 @@ if __name__ == "__main__":
         with open(filename) as fileobj:
             pprint.pprint(scan_mython_file(fileobj))
     else:
-        print BANG, MYEXPR, MYSUITE
+        if __DEBUG__:
+            print({'BANG' : BANG, 'myexpr' : MYEXPR, 'mysuite' : MYSUITE})
 
 # ______________________________________________________________________
 # End of mylexer.py

@@ -133,7 +133,7 @@ def find_nfa (nfas_tup, nfa_name):
 # Main routine
 
 def main (*args):
-    """Main routine for the basil.parsing.nfa module.
+    """Main routine for the mython.nfa module.
 
     Composes one or more grammars (represented as a collections of
     pgen non-deterministic finite state automata, or NFA's) into a single
@@ -164,14 +164,15 @@ def main (*args):
         elif opt_flag == "-n":
             nfas_to_output.append(opt_arg)
     if len(args) < 1:
-        print "Usage: nfa.py [flags] <pgenfile1> [<pgenfile2> ...]"
+        print("Usage: nfa.py [flags] <pgenfile1> [<pgenfile2> ...]")
         return
     index = 0
     nfas_tups = []
     out_nfas = [[],[]]
+    pgen = pgen2.pgen.PyPgen()
     for arg in args:
         grammar_st = pgen2.parser.parse_file(arg)
-        crnt_nfas = pgen2.pgen.PyPgen().handleStart(grammar_st)
+        crnt_nfas = pgen.handleStart(grammar_st)
         nfas_tups.append((crnt_nfas, "g%d_" % index))
         out_nfas = compose_nfas(out_nfas, crnt_nfas)
         index += 1
