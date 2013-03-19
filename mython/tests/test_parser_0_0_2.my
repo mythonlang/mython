@@ -1,0 +1,22 @@
+my thing:
+   stuff
+
+my[namedtupledef] Point(x, y): pass
+
+my[c]:
+    int add (int x, int y) {
+        return x + y;
+    }
+
+foo = 99
+
+![bar](bazarific!!!!"!@@@@
+
+  gobledeeegook
+'
+)
+
+blorgish = !<bleegle>
+blangish = ![[[]]][]
+guppygorp = ![fotz](99.9)
+poing_ast = !(poing)
