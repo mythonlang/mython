@@ -5,8 +5,10 @@
 from __future__ import absolute_import
 
 import unittest
+
 from .test_myast import TestMyAST
 from .test_myparser import TestMyParser
+from .test_cst import TestCST
 
 # ______________________________________________________________________
 
