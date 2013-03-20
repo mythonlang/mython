@@ -5,6 +5,7 @@
 import unittest, symbol, parser
 
 import mython.cst
+import mython.myparser
 
 # ______________________________________________________________________
 # Module data
@@ -37,6 +38,12 @@ class TestCST(unittest.TestCase):
             transformer.visit(
                 parser.st2tuple(
                     parser.suite(TEST_SOURCE))))
+        self.assertTrue(visitor.saw_pass)
+
+    def test_my_cst_visitor(self):
+        parserobj = mython.myparser.MyParser()
+        visitor = VisitPassStmt()
+        visitor.visit(parserobj.parse_string(TEST_SOURCE))
         self.assertTrue(visitor.saw_pass)
 
 # ______________________________________________________________________
