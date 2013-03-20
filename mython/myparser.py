@@ -157,14 +157,20 @@ class MyParser(object):
 
 def main (*args):
     my_parser = MyParser()
+    ret_val = []
     if args:
         for arg in args:
             tree = my_parser.parse_file(arg)
-            pprint.pprint(tree)
+            if __DEBUG__:
+                pprint.pprint(tree)
+            ret_val.append(tree)
     else:
         for test_string in TEST_STRINGS:
             tree = my_parser.parse_string(test_string)
-            pprint.pprint(tree)
+            if __DEBUG__:
+                pprint.pprint(tree)
+            ret_val.append(tree)
+    return ret_val
 
 # ______________________________________________________________________
 
