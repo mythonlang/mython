@@ -1,8 +1,11 @@
 #! /usr/bin/env python
 # ______________________________________________________________________
-"""Module trampoline.py
+"""
+Defines a set of utilities for LL(1) parsing using a trampoline
+instead of a call stack.
 
-Jonathan Riehl
+The trampoline uses generators and a heap-based stack instead of the
+Python call stack.
 """
 # ______________________________________________________________________
 # Module imports
@@ -13,23 +16,6 @@ import token
 # Module data
 
 __DEBUG__ = False
-
-# ______________________________________________________________________
-# Compatibility layer
-
-# This is crud.  Maybe this kind of compatibility isn't worth it?
-# Conversely, it seems wrong that __builtins__ can be a dictionary if
-# the module is imported, or a module if the module is run as a
-# script.
-
-if type(__builtins__) == dict:
-    define_next = "next" not in __builtins__.keys()
-else:
-    define_next = "next" not in __builtins__.__dict__.keys()
-
-if define_next:
-    def next (obj):
-        return obj.next()
 
 # ______________________________________________________________________
 # Function definitions
