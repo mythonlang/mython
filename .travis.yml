@@ -4,10 +4,10 @@ python:
   - "2.7"
   - "3.2"
   - "3.3"
-  - "pypy"
+#  - "pypy"
 install: "pip install pgen2 --use-mirrors"
 script:
   - python -m compileall -f .
-  - python -m mython.myparser mython/tests/test_parser_0_0_2.my
+  - python -c "from mython.tests.__main__ import *; unittest.main()"
 notifications:
   irc: "irc.freenode.org#mython"
