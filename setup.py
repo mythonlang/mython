@@ -14,10 +14,10 @@ setup(
         "mython.lang.python.python33",
         ],
     package_data = {
-        "mython.lang.python.python26" : ["Grammar"],
-        "mython.lang.python.python27" : ["Grammar"],
-        "mython.lang.python.python32" : ["Grammar"],
-        "mython.lang.python.python33" : ["Grammar"],
+        "mython.lang.python.python26" : ["Grammar", "Python.asdl"],
+        "mython.lang.python.python27" : ["Grammar", "Python.asdl"]],
+        "mython.lang.python.python32" : ["Grammar", "Python.asdl"]],
+        "mython.lang.python.python33" : ["Grammar", "Python.asdl"]],
         },
     version = "0.0.2",
     description = "The Mython extensible variant of the Python programming "
