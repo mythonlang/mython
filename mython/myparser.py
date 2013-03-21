@@ -58,8 +58,7 @@ class MyParser(object):
     def __init__(self, start_symbol=None, base_grammar_file=None):
         self.pgen = pgen2.pgen.PyPgen()
         if base_grammar_file is None:
-            base_grammar_file = os.path.join(py_grammar_path,
-                                             'python27/Grammar')
+            base_grammar_file = mython.lang.python.get_grammar_path()
         py_pgen_st = pgen2.parser.parse_file(base_grammar_file)
         my_ext_pgen_st = pgen2.parser.parse_string(MY_GRAMMAR_EXT)
         self.my_grammar = pgen_compose(
@@ -124,7 +123,8 @@ class MyParser(object):
                 self.handlers, token_stream, tree_builder)
         except SyntaxError as syntax_err:
             if __DEBUG__:
-                pprint.pprint(tree_builder.__dict__)
+                pprint.pprint(tree_builder.tree)
+                pprint.pprint([node[0] for node in tree_builder.stack])
                 # If debugging, don't mask the syntax error, just re-raise it.
                 raise
             if syntax_err.args[0].startswith("Line"):
