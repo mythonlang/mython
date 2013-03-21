@@ -20,10 +20,10 @@ import mython.lang.python
 # Module data
 
 MY_GRAMMAR_EXT="""
-not_test: BANG ('[' test ']' myexpr1 | myexpr0)
+not_test: BANG ('[' test ']' myexpr1 | myexpr)
 compound_stmt: 'my' ['[' test ']'] [NAME [parameters]] mysuite
 mysuite: ':' (MYSUITE NEWLINE | NEWLINE MYSUITE)
-myexpr0: ('('|'{'|'<') MYEXPR
+myexpr: ('('|'{'|'<') MYEXPR
 myexpr1: ('('|'['|'{'|'<') MYEXPR
 """
 
