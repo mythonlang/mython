@@ -2,6 +2,7 @@
 # ______________________________________________________________________
 # Module imports
 
+import token
 import ast
 
 from mython.lang.python.astify import MyHandler
@@ -43,7 +44,7 @@ class MyConcreteTransformer(MyHandler):
             location = first_child[2]
             elang = None
             if child_count == 2:
-                estr = self.handle_node(children[1][0][1])
+                estr = self.handle_node(children[1])
             else:
                 assert child_count == 5
                 elang = self.handle_node(children[2])
@@ -55,11 +56,46 @@ class MyConcreteTransformer(MyHandler):
         return ret_val
 
     def handle_compound_stmt(self, node):
-        ret_val = super(MyConcreteTransformer, self).handle_compound_stmt(node)
+        children = node[1]
+        child_count = len(children)
+        assert child_count > 0
+        first_child = children[0][0]
+        if isinstance(first_child, tuple) and (first_child[1] == 'my'):
+            location = first_child[2]
+            lang = None
+            name = None
+            params = None
+            index = 1
+            crnt_child = children[index][0]
+            if isinstance(crnt_child, tuple) and (crnt_child[0] == token.LSQB):
+                lang = self.handle_node(children[index + 1])
+                assert children[index + 2][0][0] == token.RSQB
+                index += 3
+                crnt_child = children[index][0]
+            if isinstance(crnt_child, tuple) and (crnt_child[0] == token.NAME):
+                name = crnt_child[1]
+                index += 1
+                crnt_child = children[index][0]
+                if crnt_child == 'parameters':
+                    params = self.handle_node(children[index])
+                    index += 1
+            assert index + 1 == child_count, (index + 1, child_count)
+            body = self.handle_node(children[index])
+            ret_val = MyStmt(lang, name, params, body, -1,
+                             lineno=location[0], col_offset=location[1])
+        else:
+            ret_val = super(MyConcreteTransformer,
+                            self).handle_compound_stmt(node)
         return ret_val
 
     def handle_mysuite(self, node):
-        raise NotImplementedError()
+        children = node[1]
+        assert len(children) == 3
+        if children[1][0][0] == token.NEWLINE:
+            ret_val = children[2][1]
+        else:
+            ret_val = children[1][1]
+        return ret_val
 
     def handle_myexpr(self, node):
         _, children = node

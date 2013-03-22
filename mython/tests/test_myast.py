@@ -12,9 +12,20 @@ import mython.myparser
 
 TEST_MYEXPR_SRCS = (
     ('\n![bang]<bang>\n', True, 'bang'),
-    # ('\n!(  bingo )\n\n', False, '  bingo '), FIXME: Fails...
+    ('\n!(  bingo )\n\n', False, '  bingo '),
 )
 
+TEST_MYSTMT_SRCS = [
+    '''my[foo] bar(baz):
+    biz
+
+    boz
+
+bar.explode(42)
+''',
+]
+
+TEST_MYSTMT_SRCS.extend(mython.myparser.TEST_STRINGS)
 
 # ______________________________________________________________________
 # Class definition
@@ -34,7 +45,17 @@ class TestMyAST(unittest.TestCase):
             self.assertTrue(isinstance(mystmt, ast.Expr))
             self.assertTrue(isinstance(mystmt.value, mython.myast.MyExpr))
             self.assertTrue((not has_elang) or mystmt.value.elang)
-            self.assertTrue(mystmt.value.estr == expected_content)
+            self.assertEquals(mystmt.value.estr, expected_content)
+
+    def test_mystmt(self):
+        myparserobj = mython.myparser.MyParser()
+        mytransformer = mython.myast.MyConcreteTransformer()
+        for test_str in TEST_MYSTMT_SRCS:
+            cstobj = myparserobj.parse_string(test_str)
+            astobj = mytransformer.handle_node(cstobj)
+            self.assertTrue(len(astobj.body) >= 1)
+            self.assertTrue(isinstance(astobj.body[0], mython.myast.MyStmt))
+            # TODO: add more checks on result
 
 # ______________________________________________________________________
 # Main routine
