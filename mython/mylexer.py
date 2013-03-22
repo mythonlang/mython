@@ -31,12 +31,6 @@ tok_name[MYEXPR] = 'MYEXPR'
 tok_name[MYSUITE] = 'MYSUITE'
 N_TOKENS = tokenize.N_TOKENS + 3
 
-pseudoprog = re.compile(
-    tokenize.Whitespace +
-    tokenize.group(tokenize.PseudoExtras, tokenize.Number, tokenize.Funny,
-                   tokenize.ContStr, tokenize.Name, r"[!]")
-    )
-
 CLOSERS = {
     '{' : '}',
     '(' : ')',
@@ -328,7 +322,7 @@ class MythonTokenStream (TokenStream):
                                               (self.lnum, 0))
                 self.continued = 0
             while pos < max_pos:
-                pseudomatch = pseudoprog.match(line, pos)
+                pseudomatch = tokenize.pseudoprog.match(line, pos)
                 if pseudomatch:
                     start, end = pseudomatch.span(1)
                     spos, epos, pos = (self.lnum, start), (self.lnum, end), end
@@ -379,8 +373,6 @@ class MythonTokenStream (TokenStream):
                                               line)
                     elif initial == '\\':
                         self.continued = 1
-                    elif initial == '!':
-                        yield self.make_token(BANG, token, spos, epos, line)
                     else:
                         if initial in '([{':
                             self.parenlev += 1
@@ -438,6 +430,10 @@ class MythonTokenStream (TokenStream):
                                                   lines)
                             self.in_myexpr = False
                             del self.open_delim
+                elif pos < max_pos and line[pos] == '!': # Favor != over !...
+                    yield self.make_token(BANG, line[pos], (self.lnum, pos),
+                                          (self.lnum, pos + 1), line)
+                    pos += 1
                 else:
                     yield self.make_token(
                         tokenize.ERRORTOKEN,
@@ -500,7 +496,7 @@ def scan_python_file (readline, generator_fn = None):
 
 # ______________________________________________________________________
 
-def mytokenize (readline, tokeneater=getattr(tokenize, 'printtoken', print)):
+def mytokenize (readline, tokeneater=getattr(tokenize, 'printtoken', None)):
     """Backward compatible function for comparison with tokenize.tokenize()
 
     To do a comparison on a given file between the Python and Mython
@@ -513,6 +509,8 @@ def mytokenize (readline, tokeneater=getattr(tokenize, 'printtoken', print)):
     >>> from basil.lang.mython import mylexer; mylexer.mytokenize(\
     ... open('filename').next)
     """
+    if tokeneater is None:
+        def tokeneater(*tok): pprint.pprint(tok)
     for token in scan_python_file(readline):
         tokeneater(*token)
 
