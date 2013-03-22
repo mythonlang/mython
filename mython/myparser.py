@@ -68,7 +68,7 @@ class MyParser(object):
               'MYSUITE' : mylexer.MYSUITE })
         self.handlers = trampoline.pgen_grammar_to_handlers(
             self.my_grammar, {})
-        nonterminal_override_names = 'mysuite', 'myexpr0', 'myexpr1'
+        nonterminal_override_names = 'mysuite', 'myexpr', 'myexpr1'
         nonterminal_overrides = ((dfa[1], dfa[0])
                                  for dfa in self.my_grammar[0]
                                  if dfa[1] in nonterminal_override_names)
@@ -85,8 +85,8 @@ class MyParser(object):
 
     def parse_mysuite(self, instream, outtree):
         instream.start_mysuite()
-        outtree.pushpop(instream.expect(':'))
         outtree.push('mysuite')
+        outtree.pushpop(instream.expect(':'))
         if instream.test_lookahead(mylexer.tokenize.NEWLINE):
             outtree.pushpop(instream.expect(mylexer.tokenize.NEWLINE))
             outtree.pushpop(instream.expect(mylexer.MYSUITE))
@@ -105,7 +105,6 @@ class MyParser(object):
         outtree.pop()
         if False: yield 'dummy'
 
-    parse_myexpr0 = parse_myexpr
     parse_myexpr1 = parse_myexpr
 
     def parse_lineiter(self, lineiter, env = None):
