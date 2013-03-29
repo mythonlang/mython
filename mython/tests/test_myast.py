@@ -45,7 +45,7 @@ class TestMyAST(unittest.TestCase):
             self.assertTrue(isinstance(mystmt, ast.Expr))
             self.assertTrue(isinstance(mystmt.value, mython.myast.MyExpr))
             self.assertTrue((not has_elang) or mystmt.value.elang)
-            self.assertEquals(mystmt.value.estr, expected_content)
+            self.assertEqual(mystmt.value.estr, expected_content)
 
     def test_mystmt(self):
         myparserobj = mython.myparser.MyParser()
