@@ -614,16 +614,31 @@ class MyHandler(object):
     def handle_funcdef (self, node):
         children = node[1]
         location = self._get_location(children[0])
-        name_index = 1
+        index = 1
         decorators = []
         if not self.is_token(children[0]):
-            name_index = 2
+            index = 2
             decorators = self.handle_node(children[0])
-        name = children[name_index][0][1]
-        params = self.handle_node(children[name_index + 1])
-        body = self.handle_node(children[name_index + 3])
-        return ast.FunctionDef(name, params, body, decorators,
-                               lineno=location[0], col_offset=location[1])
+        name = children[index][0][1]
+        index += 1
+        params = self.handle_node(children[index])
+        index += 1
+        returns = None
+        if self.is_token(children[index]) and children[index][0][1] == '->':
+            returns = self.handle_node(children[index + 1])
+            index += 2
+        index += 1
+        body = self.handle_node(children[index])
+        if "returns" in ast.FunctionDef._fields:
+            ret_val = ast.FunctionDef(name, params, body, decorators,
+                                      returns,
+                                      lineno=location[0],
+                                      col_offset=location[1])
+        else:
+            ret_val = ast.FunctionDef(name, params, body, decorators,
+                                      lineno=location[0],
+                                      col_offset=location[1])
+        return ret_val
 
     def handle_gen_for (self, node):
         return self._handle_comp_for(node)
@@ -731,6 +746,9 @@ class MyHandler(object):
         return ast.Lambda(args, body,
                           lineno=location[0], col_offset=location[1])
 
+    def handle_lambdef_nocond (self, node):
+        raise NotImplementedError()
+
     def handle_list_and_or_kw_args (self, node):
         children = node[1]
         vararg_name = None
@@ -773,6 +791,9 @@ class MyHandler(object):
                 ret_val = ast.ListComp(first_elem, comprehensions,
                               lineno=location[0], col_offset=location[1])
         return ret_val
+
+    def handle_nonlocal_stmt (self, node):
+        raise NotImplementedError()
 
     def handle_not_test (self, node):
         children = node[1]
@@ -916,6 +937,9 @@ class MyHandler(object):
 
     handle_small_stmt = _handle_only_child
 
+    def handle_star_expr (self, node):
+        raise NotImplementedError()
+
     handle_start = _handle_only_child
 
     handle_stmt = _handle_only_child
@@ -1011,6 +1035,9 @@ class MyHandler(object):
                                 lineno=lineno, col_offset=col_offset)
         return ret_val
 
+    def handle_test_nocond (self, node):
+        raise NotImplementedError()
+
     def handle_testlist (self, node):
         children = node[1]
         if len(children) == 1:
@@ -1051,6 +1078,17 @@ class MyHandler(object):
 
     # This is cool, since testlist_safe and testlist still have the same shape.
     handle_testlist_safe = handle_testlist
+
+    # This is also cool, since testlist_star_expr and testlist still
+    # have the same shape...though star_expr will crash...
+    handle_testlist_star_expr = handle_testlist
+
+    def handle_tfpdef (self, node):
+        children = node[1]
+        arg = children[0][0][1]
+        annotation = (None if len(children) < 2
+                      else self.handle_node(children[-1]))
+        return ast.arg(arg, annotation)
 
     def handle_trailer (self, node):
         children = node[1]
@@ -1123,12 +1161,16 @@ class MyHandler(object):
                     lineno=location[0], col_offset=location[1])
         return ret_val
 
+    def handle_typedargslist (self, node):
+        return ast.arguments(*self._handle_arguments(node[1]))
+
     def _handle_varargs (self, children):
         # TODO: This currently handles both a modified varargslist (in
         # myfront.pgen), and the Python 2.6 varargslist (kinda).  Fix
         # it to only support the Python grammar once the deprecated
         # parser is removed.
-        if children[0][0] == "fpdef":
+        first_is_token = self.is_token(children[0])
+        if not first_is_token and children[0][0] == "fpdef":
             old_context = self.expr_context
             self.expr_context = ast.Param
             fpdef_result = [self.handle_fpdef(children[0])]
@@ -1165,15 +1207,74 @@ class MyHandler(object):
                 arg_args = (fpdef_result + tail_result[0],
                             tail_result[1], tail_result[2],
                             default_value + tail_result[3])
-        elif self.is_token(children[0]):
+        elif first_is_token and self.is_token(children[1]):
             # XXX Synthesizing a deprecated parse tree node here.  See
             # TODO, above.
             arg_args = self.handle_node(('list_and_or_kw_args', children))
+        elif (children[0][0] in ('tfpdef', 'vfpdef') or first_is_token):
+            arg_args = self._handle_arguments(children)
         else:
             # Should be list_and_or_kw_args...
             assert len(children) == 1
             arg_args = self.handle_node(children[0])
         return arg_args
+
+    def _handle_arguments (self, children):
+        """Handle Python 3 concrete syntax that is used in the
+        construction of the ast.arguments abstract syntax node.
+        Returns the arguments to the ast.arguments constructor."""
+        args, defaults, children = self._handle_arguments_head(children)
+        (vararg, varargannotation, kwonlyargs, kwarg, kwargannotation,
+         kw_defaults) = self._handle_arguments_tail(children)
+        return (args, vararg, varargannotation, kwonlyargs, kwarg,
+                kwargannotation, defaults, kw_defaults)
+
+    def _handle_arguments_head (self, children):
+        """Iterate through concrete syntax of the form:
+
+        Xfpdef ['=' test] (',' Xfpdef ['=' test])* [',']
+
+        Where Xfpdef is either tfpdef or vfpdef.  Returns a list of
+        ast.arg instances, a list of AST nodes representing default
+        values, and any remaining children."""
+        args = []
+        defaults = []
+        index = 0
+        child_count = len(children)
+        while index < child_count:
+            if self.is_token(children[index]):
+                # Technically this makes it recognize (','*) instead
+                # of ',', but the parser shouldn't allow that...
+                if children[index][0][1] == ',':
+                    index += 1
+                    continue
+                else:
+                    break
+            args.append(self.handle_node(children[index]))
+            index += 1
+            if index < child_count:
+                assert self.is_token(children[index])
+                if children[index][0][1] == '=':
+                    index += 1
+                    defaults.append(self.handle_node(children[index]))
+                    index += 1
+        return args, defaults, children[index:]
+
+    def _handle_arguments_tail (self, children):
+        """Iterate through concrete syntax of the form:
+
+        '*' [Xfpdef] (',' Xfpdef ['=' test])* [',' '**' Xfpdef] | '**' Xfpdef
+        """
+        vararg = None
+        varargannotation = None
+        kwonlyargs = []
+        kw_defaults = []
+        kwarg = None
+        kwargannotation = None
+        if len(children) > 0:
+            raise NotImplementedError(repr(children))
+        return (vararg, varargannotation, kwonlyargs, kwarg, kwargannotation,
+                kw_defaults)
 
     def handle_varargslist (self, node):
         children = node[1]
@@ -1187,6 +1288,10 @@ class MyHandler(object):
         else:
             ret_val = self._handle_varargs(children[1:])
         return ret_val
+
+    def handle_vfpdef (self, node):
+        assert len(node[1]) == 1
+        return self.handle_tfpdef(node)
 
     def handle_while_stmt (self, node):
         children = node[1]
