@@ -6,7 +6,7 @@ The built-ins of the Mython compile time environment.
 # ______________________________________________________________________
 # Module imports
 
-from __future__ import absolute_imports
+from __future__ import absolute_import
 
 import sys as _sys
 import ast as _pyast
@@ -28,19 +28,24 @@ from . import myast as _myast
 
 def myfrontend(text, env):
     "Parse and translate the given Mython source into a Python module AST."
-    myparse = env.get('myparse', myparse)
-    abstract_tree, env1 = myparse(text, env0)
-    mydesugar = env1.get('mydesugar', mydesugar)
-    return mydesugar(abstract_tree, env1)
+    abstract_tree, env1 = env.get('myparse', myparse)(text, env)
+    return env1.get('mydesugar', mydesugar)(abstract_tree, env1)
+
+# ______________________________________________________________________
 
 def myparse(text, env):
+    """Given a source string, return a Mython abstract syntax tree."""
     # FIXME: Reintroduce better syntax error handling based on environment.
     parser = _myparser.MyParser()
     concrete_tree = parser.parse_string(text)
     transformer = _myast.MyConcreteTransformer()
     return transformer.handle_node(concrete_tree), env
 
+# ______________________________________________________________________
+
 def mydesugar(ast, env):
+    """Transform a Mython abstract syntax tree into a pure Python
+    abstract syntax tree."""
     transformer = _myast.MyAbstractTransformer()
     ast1, env1 = transformer.transform(ast, env)
     ast2 = _myast.ast.fix_missing_locations(ast1)
@@ -48,103 +53,35 @@ def mydesugar(ast, env):
 
 # ______________________________________________________________________
 
-def _myast_to_pyast (node, attr_name = None, dict_rewriter = None):
-    if isinstance(node, _myast.AST):
-        node_type_name = type(node).__name__
-        pynode_type = getattr(_pyast, node_type_name)
-        members = node.__dict__
-        if dict_rewriter:
-            members = dict_rewriter(members)
-        ret_val = pynode_type(**_myast_to_pyast(members, attr_name,
-                                                dict_rewriter))
-    elif isinstance(node, list):
-        ret_val = [_myast_to_pyast(elem, attr_name, dict_rewriter)
-                   for elem in node]
-    elif isinstance(node, dict):
-        ret_val = dict((key, _myast_to_pyast(val, key, dict_rewriter))
-                       for key, val in node.items())
-    else:
-        if node is None and attr_name in ('lineno', 'col_offset'):
-            ret_val = -1
-        else:
-            ret_val = node
-    return ret_val
-
-# ______________________________________________________________________
-
-def mybackend (tree, env):
-    """mybackend()
-    Given what is presumably a Python abstract syntax tree, generate a
+def mybackend(tree, env):
+    """Given what is presumably a Python abstract syntax tree, generate a
     code object for that tree."""
-    assert isinstance(tree, _myast.AST)
+    assert isinstance(tree, _myast.ast.AST)
     filename = env.get("filename", "<string>")
-    # Technically the builtin Python compile() could handle AST nodes
-    # as of 2.6, but Mython supports 2.6 abstract syntax, so use the
-    # Mython compiler for what it supports.
-    if _sys.version_info < (2, 7):
-        codegen_obj = _mycodegen.MyCodeGen(filename)
-        codegen_obj.handle(tree)
-        code_obj = codegen_obj.get_code()
-    else:
-        def _patch_members (members):
-            # XXX Hack to patch from Mython AST (based on 2.5) to 2.6/2.7 AST.
-            ret_val = members
-            if 'decorators' in members:
-                ret_val = ret_val.copy()
-                decorators = ret_val.pop('decorators')
-                ret_val['decorator_list'] = decorators
-            return ret_val
-        tree = _myast_to_pyast(tree, dict_rewriter = _patch_members)
-        entry_point = 'eval' if isinstance(tree, _pyast.Expression) else 'exec'
-        code_obj = compile(tree, filename, entry_point)
+    entry_point = 'eval' if isinstance(tree, _myast.ast.expr) else 'exec'
+    code_obj = compile(tree, filename, entry_point)
     return code_obj, env
 
-#______________________________________________________________________
-
-_myparse = _LL1ParserUtil.mkMyParser(_myparser.MyRealParser)
-
-def myoldparse (text, env):
-    """myparse(text, env)
-    Parse the given string into an abstract syntax tree.  The
-    environment argument is used to pass information such as filename,
-    and starting line number."""
-    assert isinstance(text, str)
-    concrete_tree, env = _myparse(text, env)
-    return _myabs.MyHandler().handle_node(concrete_tree), env
-
-def myparse (text, env):
-    # TODO: There is a wide disparity in error handling between the
-    # old and new parsers.  Fix that.
-    import myparser
-    parser = myparser.MyComposedParser()
-    concrete_tree = parser.parse_string(text, env)
-    return _myabs.MyHandler().handle_node(concrete_tree), env
-
 # ______________________________________________________________________
 
-def myeval (code, env = None):
+def myeval(code, env = None):
     """myeval(code, env)
     Evaluate the given abstract syntax tree, ast, in the environment, env.
     Returns the evaluation result."""
     if env is None:
         env = globals()
     ret_val = None
-    # This is a hack that works because the Mython expression language
-    # is identical to Python's.
-    # XXX Consider splitting the myeval() and myexec() (contrary to
-    # the original Mython paper).
     if isinstance(code, str):
-        ret_val = eval(code, env)
+        pyast, env1 = env.get('myfrontend', myfrontend)(code, env)
     else:
-        assert isinstance(code, _myast.AST)
-        env = env.copy()
-        code_obj, env = mybackend(code, env)
-        ret_val = eval(code_obj, env)
-    return ret_val, env
+        assert isinstance(code, _myast.ast.AST)
+        pyast, env1 = env.get('mydesugar', mydesugar)(code, env)
+    code_obj, env2 = env1.get('mybackend', mybackend)(pyast, env1)
+    return eval(code_obj, env2)
 
 # ______________________________________________________________________
 
-myescape = _ASTUtils.mk_escaper(_myast)
+#myescape = _ASTUtils.mk_escaper(_myast)
 
 # ______________________________________________________________________
 
