@@ -107,6 +107,13 @@ class MyConcreteTransformer(MyHandler):
 # ______________________________________________________________________
 
 class MyAbstractTransformer(ast.NodeTransformer):
+    def transform(self, node, env):
+        self.env = env.copy()
+        result = self.visit(node)
+        env1 = self.env
+        del self.env
+        return result, env1
+
     def visit_MyStmt(self, node):
         raise NotImplementedError()
 
