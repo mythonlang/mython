@@ -1162,10 +1162,7 @@ class MyHandler(object):
         return ret_val
 
     def handle_typedargslist (self, node):
-        if len(ast.arguments._fields) == 8:
-            return ast.arguments(*self._handle_arguments(node[1]))
-        else:
-            raise NotImplementedError("FIXME")
+        return ast.arguments(*self._handle_arguments(node[1]))
 
     def _handle_varargs (self, children):
         # TODO: This currently handles both a modified varargslist (in
@@ -1229,8 +1226,11 @@ class MyHandler(object):
         args, defaults, children = self._handle_arguments_head(children)
         (vararg, varargannotation, kwonlyargs, kwarg, kwargannotation,
          kw_defaults) = self._handle_arguments_tail(children)
-        return (args, vararg, varargannotation, kwonlyargs, kwarg,
-                kwargannotation, defaults, kw_defaults)
+        if len(ast.arguments._fields) == 8:
+            return (args, vararg, varargannotation, kwonlyargs, kwarg,
+                    kwargannotation, defaults, kw_defaults)
+        return (args, vararg, kwonlyargs, kw_defaults, kwarg, defaults)
+            
 
     def _handle_arguments_head (self, children):
         """Iterate through concrete syntax of the form:
