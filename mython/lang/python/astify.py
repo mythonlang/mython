@@ -1162,7 +1162,10 @@ class MyHandler(object):
         return ret_val
 
     def handle_typedargslist (self, node):
-        return ast.arguments(*self._handle_arguments(node[1]))
+        if len(ast.arguments._fields) == 8:
+            return ast.arguments(*self._handle_arguments(node[1]))
+        else:
+            raise NotImplementedError("FIXME")
 
     def _handle_varargs (self, children):
         # TODO: This currently handles both a modified varargslist (in
