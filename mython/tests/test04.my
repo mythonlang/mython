@@ -1,0 +1,30 @@
+#! /usr/bin/env mython
+# ______________________________________________________________________
+"""Test module test04.my
+
+Give an example of computation at various stages.
+
+Jonathan Riehl
+"""
+# ______________________________________________________________________
+
+from mython import mybuiltins
+
+def main ():
+    my mycode:
+        print("You should see this at eval time!")
+
+    print("You should see this at run time!")
+
+    mybuiltins.myeval(mycode)
+
+print("You should see this at import time!")
+
+my [myfront]:
+    print("You should see this at compile time!")
+
+if __name__ == "__main__":
+    main()
+
+# ______________________________________________________________________
+# End of test04.my

@@ -37,6 +37,8 @@ pseudoprog = re.compile(
                    tokenize.ContStr, tokenize.Name, r"[!]")
     )
 
+endprogs = getattr(tokenize, 'endprogs', {k : re.compile(v) for k, v in tokenize.endpats.items()})
+
 CLOSERS = {
     '{' : '}',
     '(' : ')',
@@ -345,7 +347,7 @@ class MythonTokenStream (TokenStream):
                         yield self.make_token(tokenize.COMMENT, token, spos,
                                               epos, line)
                     elif token in tokenize.triple_quoted:
-                        self.endprog = tokenize.endprogs[token]
+                        self.endprog = endprogs[token]
                         endmatch = self.endprog.match(line, pos)
                         if endmatch:
                             pos = endmatch.end(0)
@@ -362,9 +364,9 @@ class MythonTokenStream (TokenStream):
                           (token[:3] in tokenize.single_quoted)):
                         if token[-1] == '\n':
                             self.strstart = (self.lnum, start)
-                            self.endprog = (tokenize.endprogs[initial] or
-                                            tokenize.endprogs[token[1]] or
-                                            tokenize.endprogs[token[2]])
+                            self.endprog = (endprogs[initial] or
+                                            endprogs[token[1]] or
+                                            endprogs[token[2]])
                             self.contstr = line[start:]
                             self.needcont = 1
                             self.contline = line

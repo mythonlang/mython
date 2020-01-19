@@ -1,35 +1,32 @@
 # mython's setup.py
 
-from distutils.core import setup
+from setuptools import setup, find_packages
+
+with open('README.md') as fh:
+    long_description = fh.read()
 
 setup(
     name = "mython",
-    packages = [
-        "mython",
-        "mython.lang",
-        "mython.lang.python",
-        "mython.lang.python.python26",
-        "mython.lang.python.python27",
-        "mython.lang.python.python32",
-        "mython.lang.python.python33",
-        ],
+    packages = find_packages(),
     package_data = {
-        "mython.lang.python.python26" : ["Grammar", "Python.asdl"],
-        "mython.lang.python.python27" : ["Grammar", "Python.asdl"],
-        "mython.lang.python.python32" : ["Grammar", "Python.asdl"],
-        "mython.lang.python.python33" : ["Grammar", "Python.asdl"],
+        "" : ["Grammar", "Python.asdl", "Tokens"],
         },
-    version = "0.0.2",
+    entry_points={
+        "console_scripts": [
+            "mython = mython.__main__:main",
+        ],
+    },
+    version = "0.0.3",
     description = "The Mython extensible variant of the Python programming "
     "language.",
+    long_description = long_description,
+    long_description_content_type = "text/markdown",
     author = "Jon Riehl",
     author_email = "jon.riehl@gmail.com",
     url = "http://mython.org/",
     keywords = ["extensible", "syntax", "variant"],
     classifiers = [
         "Programming Language :: Python",
-        "Programming Language :: Python :: 2.6",
-        "Programming Language :: Python :: 2.7",
         "Programming Language :: Python :: 3",
         "Development Status :: 2 - Pre-Alpha",
         "Environment :: Other Environment",

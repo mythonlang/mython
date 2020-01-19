@@ -288,6 +288,9 @@ class MyHandler(object):
                                    col_offset=token_location[1])
         return ret_val
 
+    def handle_atom_expr (self, node):
+        raise NotImplementedError()
+
     def handle_augassign (self, node):
         children = node[1]
         token_text = children[0][0][1]

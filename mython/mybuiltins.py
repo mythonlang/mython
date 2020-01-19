@@ -15,8 +15,6 @@ import stat as _stat
 import struct as _struct
 import marshal as _marshal
 import imp as _imp
-import new as _new
-import StringIO as _StringIO
 import tokenize as _tokenize
 import pprint as _pprint
 
@@ -160,7 +158,6 @@ def makedesugar (desugar):
 def output_module_co (name, code_obj, env):
     """output_module_co()
     """
-    assert isinstance(code_obj, _new.code)
     if name is not None:
         outfile = open(name, "wb")
         outfile.write(_imp.get_magic())
