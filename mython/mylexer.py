@@ -46,6 +46,11 @@ CLOSERS = {
     '[' : ']',
 }
 
+COERCE_TOKEN_TYPES = {
+    'async' : tokenize.ASYNC,
+    'await' : tokenize.AWAIT,
+}
+
 __DEBUG__ = False
 
 # ______________________________________________________________________
@@ -377,8 +382,8 @@ class MythonTokenStream (TokenStream):
                     elif ((hasattr(initial, 'isidentifier') and
                              initial.isidentifier()) or
                             (initial in namechars)):
-                        yield self.make_token(tokenize.NAME, token, spos, epos,
-                                              line)
+                        tok_type = COERCE_TOKEN_TYPES.get(token, tokenize.NAME)
+                        yield self.make_token(tok_type, token, spos, epos, line)
                     elif initial == '\\':
                         self.continued = 1
                     elif token == '!':

@@ -4,8 +4,10 @@
 
 import token
 import ast
+import sys
 
 from mython.lang.python.astify import MyHandler
+from mython.lang.python.python38.astify38 import My38Handler
 
 # ______________________________________________________________________
 # Class definitions
@@ -16,11 +18,10 @@ class MyStmt(ast.stmt):
          | MyStmt(expr? lang,
                   identifier? name,
                   arguments? args,
-                  string body,
-                  int body_ofs)
+                  string body)
          | ...
     '''
-    _fields = ('lang', 'name', 'args', 'body', 'body_ofs')
+    _fields = ('lang', 'name', 'args', 'body')
 
 # ______________________________________________________________________
 
@@ -34,7 +35,12 @@ class MyExpr(ast.expr):
 
 # ______________________________________________________________________
 
-class MyConcreteTransformer(MyHandler):
+def get_base_class():
+    if sys.version_info[:2] == (3, 8):
+        return My38Handler
+    return MyHandler
+
+class MyConcreteTransformer(get_base_class()):
     def handle_not_test(self, node):
         children = node[1]
         child_count = len(children)
@@ -81,7 +87,7 @@ class MyConcreteTransformer(MyHandler):
                     index += 1
             assert index + 1 == child_count, (index + 1, child_count)
             body = self.handle_node(children[index])
-            ret_val = MyStmt(lang, name, params, body, -1,
+            ret_val = MyStmt(lang, name, params, body,
                              lineno=location[0], col_offset=location[1])
         else:
             ret_val = super(MyConcreteTransformer,
@@ -92,9 +98,9 @@ class MyConcreteTransformer(MyHandler):
         children = node[1]
         assert len(children) == 3
         if children[1][0][0] == token.NEWLINE:
-            ret_val = children[2][1]
+            ret_val = children[2][0][1]
         else:
-            ret_val = children[1][1]
+            ret_val = children[1][0][1]
         return ret_val
 
     def handle_myexpr(self, node):
@@ -115,7 +121,17 @@ class MyAbstractTransformer(ast.NodeTransformer):
         return result, env1
 
     def visit_MyStmt(self, node):
-        raise NotImplementedError()
+        myeval = self.env['myeval']
+        if node.lang is None:
+            lang = 'mython'
+        else:
+            lang = ast.Expression(node.lang)
+        lang_fn, env = myeval(lang, self.env)
+        env = env.copy()
+        env['lineno'] = node.lineno
+        env['col_offset'] = node.col_offset
+        ret_val, env = lang_fn(node.name, node.args, node.body, env)
+        return ret_val
 
     def visit_MyExpr(self, node):
         raise NotImplementedError()

@@ -34,7 +34,10 @@ class MyHandler(object):
         return type(node[0]) == tuple
 
     def handle_default (self, node):
-        return node[0]
+        if self.is_token(node):
+            return node[0]
+        else:
+            raise NotImplementedError('self.handle_{}'.format(node[0]))
 
     def _handle_nontoken_children (self, node):
         return [self.handle_node(child) for child in node[1]
@@ -137,6 +140,9 @@ class MyHandler(object):
     def handle_and_test (self, node):
         return self._handle_logical_op(node, ast.And)
 
+    def handle_annassign (self, node):
+        raise NotImplementedError()
+
     def handle_arglist (self, node):
         """handle_arglist() - Should return a 4-element list with the
         argument related inputs to the Call constructor."""
@@ -221,6 +227,19 @@ class MyHandler(object):
         return ast.Assert(test, msg,
                           lineno=location[0], col_offset=location[1])
 
+    def handle_async_funcdef (self, node):
+        raise NotImplementedError()
+
+    def handle_async_stmt (self, node):
+        children = node[1]
+        assert children[0][0][0] == token.ASYNC
+        child = self.handle_node(children[1])
+        if isinstance(child, ast.FunctionDef):
+            ret_val = ast.AsyncFunctionDef(*(getattr(child, field) for field in ast.FunctionDef._fields))
+        else:
+            raise NotImplementedError()
+        return ret_val
+
     def handle_atom (self, node):
         ret_val = None
         children = node[1]
@@ -289,7 +308,26 @@ class MyHandler(object):
         return ret_val
 
     def handle_atom_expr (self, node):
-        raise NotImplementedError()
+        children = node[1]
+        if len(children) == 1:
+            ret_val = self.handle_node(children[0])
+        else:
+            awaiting = False
+            if children[0][0][0] == token.AWAIT:
+                awaiting = True
+                children = children[1:]
+            location = self._get_location(children[0])
+            old_context = self.expr_context
+            self.expr_context = ast.Load
+            crnt_val = self.handle_node(children[0])
+            for child in children[1:-1]:
+                crnt_val = self._process_trailer(crnt_val, child, location)
+            self.expr_context = old_context
+            ret_val = self._process_trailer(crnt_val, children[-1],
+                                            location)
+            if awaiting:
+                ret_val = ast.Await(ret_val)
+        return ret_val
 
     def handle_augassign (self, node):
         children = node[1]
@@ -370,7 +408,7 @@ class MyHandler(object):
         else:
             ops = []
             comparators = []
-            for child_index in xrange(1, len(children), 2):
+            for child_index in range(1, len(children), 2):
                 ops.append(self.handle_node(children[child_index]))
                 comparators.append(self.handle_node(children[child_index + 1]))
             lineno = None
@@ -428,7 +466,7 @@ class MyHandler(object):
         keys = []
         values = []
         assert len(children) > 2
-        for child_index in xrange(0, len(children), 4):
+        for child_index in range(0, len(children), 4):
             keys.append(self.handle_node(children[child_index]))
             assert children[child_index + 1][0][1] == ':'
             values.append(self.handle_node(children[child_index + 2]))
@@ -463,7 +501,7 @@ class MyHandler(object):
         first_location = children[0][0][2]
         ret_val = ast.Name(first_name, ast.Load(), first_location[0],
                            first_location[1])
-        for child_index in xrange(2, len(children), 2):
+        for child_index in range(2, len(children), 2):
             location = children[child_index - 1][0][2]
             ret_val = ast.Attribute(ret_val, children[child_index][0][1],
                                     ast.Load(), *location)
@@ -565,7 +603,7 @@ class MyHandler(object):
 
     def handle_file_input (self, node):
         child_results = self._handle_nontoken_children(node)
-        return ast.Module(self._flatten_once(child_results))
+        return ast.Module(self._flatten_once(child_results), [])
 
     handle_flow_stmt = _handle_only_child
 
@@ -613,6 +651,10 @@ class MyHandler(object):
             ret_val = ast.Tuple(tup_elems, ast.Store(),
                                 lineno=location[0], col_offset=location[1])
         return child_results
+
+    def handle_func_body_suite (self, node):
+        # FIXME: Add support for type annotation in generated AST.
+        return self.handle_suite(node)
 
     def handle_funcdef (self, node):
         children = node[1]
@@ -795,6 +837,14 @@ class MyHandler(object):
                               lineno=location[0], col_offset=location[1])
         return ret_val
 
+    def handle_namedexpr_test (self, node):
+        children = node[1]
+        if len(children) == 1:
+            ret_val = self.handle_node(children[0])
+        else:
+            raise NotImplementedError()
+        return ret_val
+
     def handle_nonlocal_stmt (self, node):
         raise NotImplementedError()
 
@@ -874,6 +924,8 @@ class MyHandler(object):
         return ret_val
 
     def handle_print_stmt (self, node):
+        '''Deprecated.
+        '''
         children = node[1]
         location = children[0][0][2]
         children = children[1:]
@@ -1017,6 +1069,9 @@ class MyHandler(object):
     def handle_suite (self, node):
         return self._flatten_once(self._handle_nontoken_children(node))
 
+    def handle_sync_comp_for (self, node):
+        raise NotImplementedError()
+
     def handle_term (self, node):
         def term_op (tok):
             return {"*" : ast.Mult,
@@ -1103,7 +1158,7 @@ class MyHandler(object):
             call_args = [[], [], None, None]
             if len(children) == 3:
                 call_args = self.handle_node(children[1])
-            ret_val = ast.Call(None, *call_args)
+            ret_val = ast.Call(None, call_args[0], call_args[1])
         elif token_text == "[":
             old_context = self.expr_context
             self.expr_context = ast.Load
@@ -1166,6 +1221,9 @@ class MyHandler(object):
 
     def handle_typedargslist (self, node):
         return ast.arguments(*self._handle_arguments(node[1]))
+
+    def handle_typelist (self, node):
+        raise NotImplementedError()
 
     def _handle_varargs (self, children):
         # TODO: This currently handles both a modified varargslist (in
@@ -1353,6 +1411,9 @@ class MyHandler(object):
 
     def handle_xor_expr (self, node):
         return self._handle_left_binop(node, lambda x : ast.BitXor())
+
+    def handle_yield_arg (self, node):
+        raise NotImplementedError()
 
     def handle_yield_expr (self, node):
         children = node[1]

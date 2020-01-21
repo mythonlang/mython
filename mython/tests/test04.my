@@ -9,6 +9,7 @@ Jonathan Riehl
 # ______________________________________________________________________
 
 from mython import mybuiltins
+from ast import *
 
 def main ():
     my mycode:

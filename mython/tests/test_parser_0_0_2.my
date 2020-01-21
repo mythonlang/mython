@@ -20,3 +20,6 @@ blorgish = !<bleegle>
 blangish = ![[[]]][]
 guppygorp = ![fotz](99.9)
 poing_ast = !(poing)
+async def foo():
+    await 42
+

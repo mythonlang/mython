@@ -6,8 +6,6 @@ The built-ins of the Mython compile time environment.
 # ______________________________________________________________________
 # Module imports
 
-from __future__ import absolute_import
-
 import sys as _sys
 import ast as _pyast
 import os as _os
@@ -34,7 +32,7 @@ def myfrontend(text, env):
 def myparse(text, env):
     """Given a source string, return a Mython abstract syntax tree."""
     # FIXME: Reintroduce better syntax error handling based on environment.
-    parser = _myparser.MyParser()
+    parser = _myparser.MyParser(start_symbol=env.get('start_symbol', 'file_input'))
     concrete_tree = parser.parse_string(text)
     transformer = _myast.MyConcreteTransformer()
     return transformer.handle_node(concrete_tree), env
@@ -54,9 +52,9 @@ def mydesugar(ast, env):
 def mybackend(tree, env):
     """Given what is presumably a Python abstract syntax tree, generate a
     code object for that tree."""
-    assert isinstance(tree, _myast.ast.AST)
+    assert isinstance(tree, _pyast.AST)
     filename = env.get("filename", "<string>")
-    entry_point = 'eval' if isinstance(tree, _myast.ast.expr) else 'exec'
+    entry_point = 'eval' if isinstance(tree, _pyast.Expression) else 'exec'
     code_obj = compile(tree, filename, entry_point)
     return code_obj, env
 
@@ -67,24 +65,66 @@ def myeval(code, env = None):
     Evaluate the given abstract syntax tree, ast, in the environment, env.
     Returns the evaluation result."""
     if env is None:
-        env = globals()
-    ret_val = None
+        env = initial_environment()
     if isinstance(code, str):
-        pyast, env1 = env.get('myfrontend', myfrontend)(code, env)
+        # FIXME: There is a bug somewhere in the environment chaining logic
+        # that requires us to copy the environment before mutating it.
+        env0 = env.copy()
+        start_symbol = env0.get('start_symbol')
+        env0['start_symbol'] = 'eval_input'
+        pyexpr, env1 = env.get('myfrontend', myfrontend)(code, env0)
+        pyast = _pyast.Expression(pyexpr)
+        env1['start_symbol'] = start_symbol
     else:
-        assert isinstance(code, _myast.ast.AST)
+        assert isinstance(code, _pyast.AST)
         pyast, env1 = env.get('mydesugar', mydesugar)(code, env)
     code_obj, env2 = env1.get('mybackend', mybackend)(pyast, env1)
-    return eval(code_obj, env2)
+    return eval(code_obj, env2), env2
 
 # ______________________________________________________________________
 
-#myescape = _ASTUtils.mk_escaper(_myast)
+def myescape (obj):
+    """myescape(obj) Translate the given AST into a Python AST
+    that can be evaluated to construct the given AST."""
+    if isinstance(obj, _pyast.AST):
+        ast_type = type(obj)
+        esc_args = [myescape(getattr(obj, ctor_arg))
+                    for ctor_arg in ast_type._fields
+                    # FIXME: Investigate possible stink; Optional fields
+                    # at the end of the field list may be elided by CPython.
+                    # For example, constants' kind field goes missing if not
+                    # explicitly given to the ctor.
+                    if hasattr(obj, ctor_arg)
+                    ]
+        ret_val = _pyast.Call(_pyast.Name(ast_type.__name__, _pyast.Load()),
+                              esc_args, [])
+    elif isinstance(obj, dict):
+        keyobjs = obj.keys()
+        ret_val = _pyast.Dict(
+            [myescape(keyobj) for keyobj in keyobjs],
+            [myescape(obj[keyobj]) for keyobj in keyobjs])
+    elif isinstance(obj, list):
+        ret_val = _pyast.List([myescape(subobj) for subobj in obj],
+                                    _pyast.Load())
+    elif isinstance(obj, tuple):
+        ret_val = _pyast.Tuple([myescape(subobj) for subobj in obj],
+                                    _pyast.Load())
+    elif isinstance(obj, int):
+        ret_val = _pyast.Num(obj)
+    elif isinstance(obj, float):
+        ret_val = _pyast.Num(obj)
+    elif isinstance(obj, str):
+        ret_val = _pyast.Str(obj)
+    elif obj is None:
+        ret_val = _pyast.Name("None", _pyast.Load())
+    else:
+        raise NotImplementedError("Don't know how to escape '%r'!" % (obj))
+    return ret_val
 
 # ______________________________________________________________________
 
-def mython (name, code, env0):
-    """mython(name, code, env0)
+def mython (name, args, code, env0):
+    """mython(name, args, code, env0)
     Quotation function for Mython."""
     stmt_lst = []
     ast, env1 = myparse(code, env0)
@@ -92,15 +132,15 @@ def mython (name, code, env0):
     if name is not None:
         env1[name] = ast
         # XXX Add line and position information to the constructed syntax.
-        stmt_lst = [_myast.Assign([_myast.Name(name, _myast.Store())], esc_ast)]
+        stmt_lst = [_pyast.Assign([_pyast.Name(name, _pyast.Store())], esc_ast)]
     else:
-        stmt_lst = [_myast.Expr(esc_ast)]
+        stmt_lst = [_pyast.Expr(esc_ast)]
     return stmt_lst, env1
 
 # ______________________________________________________________________
 
-def myfront (name, code, env0):
-    """myfront(name, code, env0)
+def myfront (name, args, code, env0):
+    """myfront(name, args, code, env0)
     Pragma function for MyFront."""
     ast, env = myfrontend(code, env0)
     env = env.copy()
@@ -127,13 +167,13 @@ def makequote (processor, use_env = False):
     return a Python object and a possibly modified environment.
     """
     if not use_env:
-        def _quote (name, code, env):
+        def _quote (name, args, code, env):
             obj = processor(code)
             ast, env = env["myfrontend"]("%s = %r\n" % (name, obj) if name else
                                          "%r\n" % (obj,), env)
             return ast.body, env
     else:
-        def _quote (name, code, env):
+        def _quote (name, args, code, env):
             obj, env = processor(code, env)
             ast, env = env["myfrontend"]("%s = %r\n" % (name, obj) if name else
                                          "%r\n" % (obj,), env)
