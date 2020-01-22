@@ -313,7 +313,7 @@ class MyHandler(object):
             ret_val = self.handle_node(children[0])
         else:
             awaiting = False
-            if children[0][0][0] == token.AWAIT:
+            if children[0][0][1] == 'await':
                 awaiting = True
                 children = children[1:]
             location = self._get_location(children[0])
@@ -603,9 +603,10 @@ class MyHandler(object):
 
     def handle_file_input (self, node):
         child_results = self._handle_nontoken_children(node)
+        body = self._flatten_once(child_results)
         if len(ast.Module._fields) > 1:
-            return ast.Module(self._flatten_once(child_results), [])
-        return ast.Module(self._flatten_once(child_results))
+            return ast.Module(body, [])
+        return ast.Module(body)
 
     handle_flow_stmt = _handle_only_child
 

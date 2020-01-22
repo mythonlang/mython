@@ -47,8 +47,9 @@ CLOSERS = {
 }
 
 COERCE_TOKEN_TYPES = {
-    'async' : tokenize.ASYNC,
-    'await' : tokenize.AWAIT,
+    attr.lower() : getattr(tokenize, attr)
+    for attr in ('ASYNC', 'AWAIT')
+    if hasattr(tokenize, attr)
 }
 
 __DEBUG__ = False
