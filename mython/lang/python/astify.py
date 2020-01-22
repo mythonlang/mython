@@ -603,7 +603,9 @@ class MyHandler(object):
 
     def handle_file_input (self, node):
         child_results = self._handle_nontoken_children(node)
-        return ast.Module(self._flatten_once(child_results), [])
+        if len(ast.Module._fields) > 1:
+            return ast.Module(self._flatten_once(child_results), [])
+        return ast.Module(self._flatten_once(child_results))
 
     handle_flow_stmt = _handle_only_child
 
