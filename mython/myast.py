@@ -7,6 +7,8 @@ import ast
 import sys
 
 from mython.lang.python.astify import MyHandler
+from mython.lang.python.python36.astify36 import My36Handler
+from mython.lang.python.python37.astify37 import My37Handler
 from mython.lang.python.python38.astify38 import My38Handler
 
 # ______________________________________________________________________
@@ -36,9 +38,12 @@ class MyExpr(ast.expr):
 # ______________________________________________________________________
 
 def get_base_class():
-    if sys.version_info[:2] == (3, 8):
-        return My38Handler
-    return MyHandler
+    assert sys.version_info[0] == 3
+    return {
+        6: My36Handler,
+        7: My37Handler,
+        8: My38Handler,
+    }.get(sys.version_info[1], MyHandler)
 
 class MyConcreteTransformer(get_base_class()):
     def handle_not_test(self, node):

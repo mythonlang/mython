@@ -1,7 +1,7 @@
-from ..astify import MyHandler, ast
+from ..python37.astify37 import My37Handler, ast
 
 
-class My38Handler (MyHandler):
+class My38Handler (My37Handler):
     def handle_funcdef(self, node):
         # ('name', 'args', 'body', 'decorator_list', 'returns', 'type_comment')
         children = node[1]
@@ -28,10 +28,7 @@ class My38Handler (MyHandler):
         assert index == len(children) - 1
         return ast.FunctionDef(name, params, body, decorators, returns, type_comment)
 
-    def handle_parameters(self, node):
-        children = node[1]
-        if len(children) > 2:
-            return self.handle_typedargslist(children[1])
+    def _get_empty_arguments(self):
         return ast.arguments([], [], None, [], [], None, [])
 
     def handle_typedargslist(self, node):

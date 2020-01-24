@@ -217,7 +217,8 @@ def _load_file (filename, env):
     Given a file name, and an environment, load the file, and
     extend/modify the environment with information about the current
     file to be processed."""
-    text = open(filename).read()
+    with (open(filename)) as fileobj:
+        text = fileobj.read()
     env["filename"] = filename
     env["output_file"] = "%s.pyc" % (_os.path.splitext(filename)[0])
     return text, env
