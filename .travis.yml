@@ -7,3 +7,8 @@ install: "pip install pgen2"
 script:
   - python -m compileall -f .
   - python -c "from mython.tests.__main__ import *; unittest.main()"
+notifications:
+  webhooks:
+    urls:
+      - https://webhooks.gitter.im/e/5d08780819801f120deb
+    on_start: never
