@@ -120,8 +120,12 @@ class MyHandler(object):
         comprehensions = []
         if len(children) > 4:
             child_ifs, comprehensions = self.handle_node(children[4])
-        comprehensions.insert(0, ast.comprehension(target, iter_expr,
-                                                   child_ifs))
+        if len(ast.comprehension._fields) > 3:
+            comprehensions.insert(0, ast.comprehension(target, iter_expr,
+                                                       child_ifs, 0))
+        else:
+            comprehensions.insert(0, ast.comprehension(target, iter_expr,
+                                                       child_ifs))
         return ([], comprehensions)
 
     def _handle_comp_if (self, node):
@@ -240,6 +244,13 @@ class MyHandler(object):
             raise NotImplementedError()
         return ret_val
 
+    def _handle_name (self, token_text, token_location):
+        '''Overloadable handler for name tokens in support of recent Python
+        versions.'''
+        return ast.Name(token_text, self.expr_context(),
+                        lineno=token_location[0],
+                        col_offset=token_location[1])
+
     def handle_atom (self, node):
         ret_val = None
         children = node[1]
@@ -269,7 +280,7 @@ class MyHandler(object):
                     [], ast.Load(),
                     lineno=token_location[0], col_offset=token_location[1])
             else:
-                ret_val = self.handle_node(children[1])
+                ret_val = self.handle_testlist_comp(children[1], is_comp=True)
                 if hasattr(ret_val, "lineno") and ret_val.lineno is None:
                     ret_val.lineno, ret_val.col_offset = token_location
         elif token_text == "{":
@@ -300,11 +311,12 @@ class MyHandler(object):
             elif token_kind == token.NUMBER:
                 ret_val = ast.Num(eval(token_text), lineno=token_location[0],
                                   col_offset=token_location[1])
+            elif token_kind == token.ELLIPSIS:
+                ret_val = ast.Ellipsis(lineno=token_location[0],
+                                       col_offset=token_location[1])
             else:
                 assert token_kind == token.NAME
-                ret_val = ast.Name(token_text, self.expr_context(),
-                                   lineno=token_location[0],
-                                   col_offset=token_location[1])
+                ret_val = self._handle_name(token_text, token_location)
         return ret_val
 
     def handle_atom_expr (self, node):
@@ -459,7 +471,7 @@ class MyHandler(object):
             targets = [targets]
         else:
             targets = targets.elts
-        return ast.Delete(targets, location[0], location[1])
+        return ast.Delete(targets, lineno=location[0], col_offset=location[1])
 
     def handle_dictmaker (self, node):
         children = node[1]
@@ -617,10 +629,6 @@ class MyHandler(object):
         self.expr_context = ast.Store
         target = self.handle_node(children[1])
         self.expr_context = old_context
-        # XXX Compatibility hack to comply with Python - which seems
-        # to only apply in a weird situations...WTF, yo?
-        if isinstance(target, ast.Tuple):
-            target.col_offset = location[1]
         iter_expr = self.handle_node(children[3])
         body_stmts = self.handle_node(children[5])
         orelse_stmts = []
@@ -653,7 +661,7 @@ class MyHandler(object):
             self.expr_context = old_context
             ret_val = ast.Tuple(tup_elems, ast.Store(),
                                 lineno=location[0], col_offset=location[1])
-        return child_results
+        return ret_val
 
     def handle_func_body_suite (self, node):
         # FIXME: Add support for type annotation in generated AST.
@@ -1112,10 +1120,10 @@ class MyHandler(object):
 
     handle_testlist1 = handle_testlist
 
-    def handle_testlist_comp (self, node):
-        return self.handle_testlist_gexp(node)
+    def handle_testlist_comp (self, node, *, is_comp=False):
+        return self.handle_testlist_gexp(node, is_comp=is_comp)
 
-    def handle_testlist_gexp (self, node):
+    def handle_testlist_gexp (self, node, *, is_comp=False):
         children = node[1]
         ret_val = self.handle_node(children[0])
         if len(children) > 1:
@@ -1132,9 +1140,14 @@ class MyHandler(object):
                 assert len(children) == 2
                 if_exprs, comprehensions = self.handle_node(children[1])
                 assert len(if_exprs) == 0
-                ret_val = ast.GeneratorExp(
-                    ret_val, comprehensions,
-                    lineno=lineno, col_offset=col_offset)
+                if is_comp:
+                    ret_val = ast.ListComp(ret_val, comprehensions,
+                                           lineno=lineno,
+                                           col_offset=col_offset)
+                else:
+                    ret_val = ast.GeneratorExp(ret_val, comprehensions,
+                                               lineno=lineno,
+                                               col_offset=col_offset)
         return ret_val
 
     # This is cool, since testlist_safe and testlist still have the same shape.
@@ -1147,9 +1160,11 @@ class MyHandler(object):
     def handle_tfpdef (self, node):
         children = node[1]
         arg = children[0][0][1]
+        location = children[0][0][2]
         annotation = (None if len(children) < 2
                       else self.handle_node(children[-1]))
-        return ast.arg(arg, annotation)
+        return ast.arg(arg, annotation,
+                       lineno=location[0], col_offset=location[1])
 
     def handle_trailer (self, node):
         children = node[1]

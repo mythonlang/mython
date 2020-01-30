@@ -193,7 +193,9 @@ class MythonTokenStream (TokenStream):
         """
         namechars = string.ascii_letters + '_'
         numchars = '0123456789'
+        line = ''
         while 1:
+            last_line = line
             line = self.readline()
             pos, max_pos = 0, len(line)
             if self.parenlev == 0 and self.in_mysuite:
@@ -342,7 +344,7 @@ class MythonTokenStream (TokenStream):
                     spos, epos, pos = (self.lnum, start), (self.lnum, end), end
                     token, initial = line[start:end], line[start]
                     if ((initial in numchars) or
-                        (initial == '.' and token != '.')):
+                        (initial == '.' and token != '.' and token != '...')):
                         yield self.make_token(tokenize.NUMBER, token, spos,
                                               epos, line)
                     elif initial in '\r\n':
@@ -452,6 +454,11 @@ class MythonTokenStream (TokenStream):
                         line[pos] if pos < max_pos else '', (self.lnum, pos),
                         (self.lnum, pos + 1), line)
                     pos += 1
+        if last_line and last_line[-1] not in '\r\n':
+            yield self.make_token(tokenize.NEWLINE, '',
+                                  (self.lnum - 1, len(last_line)),
+                                  (self.lnum - 1, len(last_line) + 1),
+                                  '')
         for indent in self.indents[1:]:
             yield self.make_token(tokenize.DEDENT, '', (self.lnum, 0),
                                   (self.lnum, 0), '')

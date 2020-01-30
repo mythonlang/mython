@@ -6,6 +6,7 @@ import token
 import ast
 import sys
 
+from mython.lang.python import get_myhandler_class
 from mython.lang.python.astify import MyHandler
 from mython.lang.python.python36.astify36 import My36Handler
 from mython.lang.python.python37.astify37 import My37Handler
@@ -37,15 +38,7 @@ class MyExpr(ast.expr):
 
 # ______________________________________________________________________
 
-def get_base_class():
-    assert sys.version_info[0] == 3
-    return {
-        6: My36Handler,
-        7: My37Handler,
-        8: My38Handler,
-    }.get(sys.version_info[1], MyHandler)
-
-class MyConcreteTransformer(get_base_class()):
+class MyConcreteTransformer(get_myhandler_class()):
     def handle_not_test(self, node):
         children = node[1]
         child_count = len(children)
