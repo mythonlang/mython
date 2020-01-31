@@ -239,7 +239,9 @@ class MyHandler(object):
         assert children[0][0][0] == token.ASYNC
         child = self.handle_node(children[1])
         if isinstance(child, ast.FunctionDef):
-            ret_val = ast.AsyncFunctionDef(*(getattr(child, field) for field in ast.FunctionDef._fields))
+            ret_val = ast.AsyncFunctionDef(
+                *(getattr(child, field) for field in ast.FunctionDef._fields),
+                lineno=child.lineno, col_offset=child.col_offset)
         else:
             raise NotImplementedError()
         return ret_val
@@ -291,9 +293,10 @@ class MyHandler(object):
                                    col_offset=token_location[1])
             else:
                 ret_val = self.handle_node(children[1])
-                if hasattr(ret_val, "lineno"):
+                attributes = getattr(ret_val, '_attributes', ())
+                if 'lineno' in attributes:
                     ret_val.lineno = token_location[0]
-                if hasattr(ret_val, "col_offset"):
+                if 'col_offset' in attributes:
                     ret_val.col_offset = token_location[1]
         elif token_text == "`":
             assert children[2][0][1] == "`"
@@ -324,9 +327,10 @@ class MyHandler(object):
         if len(children) == 1:
             ret_val = self.handle_node(children[0])
         else:
-            awaiting = False
+            awaitifier = None
             if children[0][0][1] == 'await':
-                awaiting = True
+                awaitifier = ast.Await(None, lineno=children[0][0][2][0],
+                                       col_offset=children[0][0][2][1])
                 children = children[1:]
             location = self._get_location(children[0])
             old_context = self.expr_context
@@ -337,8 +341,9 @@ class MyHandler(object):
             self.expr_context = old_context
             ret_val = self._process_trailer(crnt_val, children[-1],
                                             location)
-            if awaiting:
-                ret_val = ast.Await(ret_val)
+            if awaitifier is not None:
+                awaitifier.value = ret_val
+                ret_val = awaitifier
         return ret_val
 
     def handle_augassign (self, node):
@@ -1004,7 +1009,10 @@ class MyHandler(object):
     handle_small_stmt = _handle_only_child
 
     def handle_star_expr (self, node):
-        raise NotImplementedError()
+        children = node[1]
+        location = children[0][0][2]
+        return ast.Starred(self.handle_node(children[1]), ast.Load(),
+                           lineno=location[0], col_offset=location[1])
 
     handle_start = _handle_only_child
 
@@ -1104,8 +1112,7 @@ class MyHandler(object):
                                 lineno=lineno, col_offset=col_offset)
         return ret_val
 
-    def handle_test_nocond (self, node):
-        raise NotImplementedError()
+    handle_test_nocond = _handle_only_child
 
     def handle_testlist (self, node):
         children = node[1]
