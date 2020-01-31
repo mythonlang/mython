@@ -111,6 +111,11 @@ class MyHandler(object):
 
     def _handle_comp_for (self, node):
         children = node[1]
+        is_async = 0
+        if self.is_token(children[1]):
+            assert children[0][0][1] == 'async'
+            is_async = 1
+            children = children[1:]
         old_context = self.expr_context
         self.expr_context = ast.Store
         target = self.handle_node(children[1])
@@ -122,7 +127,7 @@ class MyHandler(object):
             child_ifs, comprehensions = self.handle_node(children[4])
         if len(ast.comprehension._fields) > 3:
             comprehensions.insert(0, ast.comprehension(target, iter_expr,
-                                                       child_ifs, 0))
+                                                       child_ifs, is_async))
         else:
             comprehensions.insert(0, ast.comprehension(target, iter_expr,
                                                        child_ifs))
@@ -235,15 +240,23 @@ class MyHandler(object):
         raise NotImplementedError()
 
     def handle_async_stmt (self, node):
+        '''NOTE: This method persists a location calculation bug in Python 3.6,
+        using the child nonterminal's location.
+        '''
         children = node[1]
-        assert children[0][0][0] == token.ASYNC
+        assert children[0][0][1] == 'async'
         child = self.handle_node(children[1])
+        args = (getattr(child, field) for field in child._fields)
         if isinstance(child, ast.FunctionDef):
-            ret_val = ast.AsyncFunctionDef(
-                *(getattr(child, field) for field in ast.FunctionDef._fields),
-                lineno=child.lineno, col_offset=child.col_offset)
+            ret_val = ast.AsyncFunctionDef(*args, lineno=child.lineno,
+                                           col_offset=child.col_offset)
+        elif isinstance(child, ast.With):
+            ret_val = ast.AsyncWith(*args, lineno=child.lineno,
+                                    col_offset=child.col_offset)
         else:
-            raise NotImplementedError()
+            assert isinstance(child, ast.For)
+            ret_val = ast.AsyncFor(*args, lineno=child.lineno,
+                                   col_offset=child.col_offset)
         return ret_val
 
     def _handle_name (self, token_text, token_location):
@@ -454,11 +467,11 @@ class MyHandler(object):
             location = children[0][0][2]
             args = [ret_val]
             if child_count > 5:
-                args += self.handle_node(children[3])
+                args += self.handle_node(children[3])[:2]
             else:
-                args += [[], [], None, None]
-            args += location
-            ret_val = ast.Call(*args)
+                args += [[], []]
+            ret_val = ast.Call(*args, lineno=location[0],
+                               col_offset=location[1])
         return ret_val
 
     handle_decorators = handle_children
@@ -516,8 +529,8 @@ class MyHandler(object):
         children = node[1]
         first_name = children[0][0][1]
         first_location = children[0][0][2]
-        ret_val = ast.Name(first_name, ast.Load(), first_location[0],
-                           first_location[1])
+        ret_val = ast.Name(first_name, ast.Load(), lineno=first_location[0],
+                           col_offset=first_location[1])
         for child_index in range(2, len(children), 2):
             location = children[child_index - 1][0][2]
             ret_val = ast.Attribute(ret_val, children[child_index][0][1],

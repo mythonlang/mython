@@ -48,11 +48,10 @@ class My36Handler(MyHandler):
             else:
                 keys = [key]
                 values = [value]
-                assert children[index][0][1] == ','
-                index += 1
                 while index < child_count:
-                    keys.append(self.handle_node(children[index]))
-                    keys.append(self.handle_node(children[index + 2]))
+                    assert children[index][0][1] == ','
+                    keys.append(self.handle_node(children[index + 1]))
+                    values.append(self.handle_node(children[index + 3]))
                     index += 4
                 ret_val = ast.Dict(keys, values)
         else:
