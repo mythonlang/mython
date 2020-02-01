@@ -237,7 +237,13 @@ class MyHandler(object):
                           lineno=location[0], col_offset=location[1])
 
     def handle_async_funcdef (self, node):
-        raise NotImplementedError()
+        children = node[1]
+        assert self.is_token(children[0])
+        location = children[0][0][2]
+        funcdef = self.handle_funcdef(children[1])
+        return ast.AsyncFunctionDef(
+            *(getattr(funcdef, field) for field in funcdef._fields),
+            lineno=location[0], col_offset=location[1])
 
     def handle_async_stmt (self, node):
         '''NOTE: This method persists a location calculation bug in Python 3.6,
@@ -456,8 +462,12 @@ class MyHandler(object):
         location = node[1][0][0][2]
         return ast.Continue(lineno=location[0], col_offset=location[1])
 
-    def handle_decorated (self, node):
-        raise NotImplementedError(repr(node))
+    def handle_decorated(self, node):
+        children = node[1]
+        ret_val = self.handle_node(children[1])
+        ret_val.decorator_list = self.handle_node(children[0])
+        ret_val.lineno, ret_val.col_offset = self._get_location(children[0])
+        return ret_val
 
     def handle_decorator (self, node):
         children = node[1]
@@ -470,8 +480,8 @@ class MyHandler(object):
                 args += self.handle_node(children[3])[:2]
             else:
                 args += [[], []]
-            ret_val = ast.Call(*args, lineno=location[0],
-                               col_offset=location[1])
+            ret_val = ast.Call(*args, lineno=args[0].lineno,
+                               col_offset=args[0].col_offset)
         return ret_val
 
     handle_decorators = handle_children

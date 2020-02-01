@@ -26,11 +26,4 @@ class My37Handler (My36Handler):
         ret_val[1][0].is_async = len(children) > 1
         return ret_val
 
-    def handle_decorated(self, node):
-        children = node[1]
-        ret_val = self.handle_node(children[1])
-        ret_val.decorator_list = self.handle_node(children[0])
-        return self.handle_node(node[1][-1])
-        return super().handle_decorated(node)
-
     handle_sync_comp_for = My36Handler._handle_comp_for
