@@ -43,6 +43,9 @@ class MyHandler(object):
         return [self.handle_node(child) for child in node[1]
                 if not self.is_token(child)]
 
+    def _get_empty_arguments (self):
+        return ast.arguments([], None, None, [])
+
     def _handle_only_child (self, node):
         children = node[1]
         assert len(children) == 1
@@ -265,6 +268,25 @@ class MyHandler(object):
                                    col_offset=child.col_offset)
         return ret_val
 
+    def _handle_atom_token (self, token_text, token_location, children):
+        token_kind = children[0][0][0]
+        if token_kind == token.STRING:
+            ret_string = ast.literal_eval(token_text)
+            for child in children[1:]:
+                ret_string += ast.literal_eval(child[0][1])
+            ret_val = ast.Str(ret_string, lineno=token_location[0],
+                                col_offset=token_location[1])
+        elif token_kind == token.NUMBER:
+            ret_val = ast.Num(ast.literal_eval(token_text), lineno=token_location[0],
+                                col_offset=token_location[1])
+        elif token_kind == token.ELLIPSIS:
+            ret_val = ast.Ellipsis(lineno=token_location[0],
+                                    col_offset=token_location[1])
+        else:
+            assert token_kind == token.NAME
+            ret_val = self._handle_name(token_text, token_location)
+        return ret_val
+
     def _handle_name (self, token_text, token_location):
         '''Overloadable handler for name tokens in support of recent Python
         versions.'''
@@ -278,32 +300,24 @@ class MyHandler(object):
         assert self.is_token(children[0])
         token_text = children[0][0][1]
         token_location = children[0][0][2]
-        if token_text == "(":
-            if self.is_token(children[1]) and children[1][0][1] == ")":
-                if self.expr_context is not ast.Load:
-                    # XXX Figure out how to push stack frame for
-                    # traceback from Python.
-                    raise NotImplementedError()
-                ret_val = ast.Tuple(
-                    [], ast.Load(),
+        if token_text in {"(", "["}:
+            testlist_comp = []
+            if self.is_token(children[1]) and children[1][0][1] in {")", "]"}:
+                assert self.expr_context is ast.Load
+            else:
+                testlist_comp = self.handle_testlist_comp(children[1])
+            if isinstance(testlist_comp, list):
+                ret_val = (ast.Tuple if token_text == '(' else ast.List)(
+                    testlist_comp, self.expr_context(),
                     lineno=token_location[0], col_offset=token_location[1])
             else:
-                # NOTE: This puts the burden of detecting a tuple and
-                # constructing it on handle_testlist_gexp().
-                ret_val = self.handle_node(children[1])
-        elif token_text == "[":
-            if self.is_token(children[1]) and children[1][0][1] == "]":
-                if self.expr_context is not ast.Load:
-                    # XXX Figure out how to push stack frame for
-                    # traceback from Python.
-                    raise NotImplementedError()
-                ret_val = ast.List(
-                    [], ast.Load(),
-                    lineno=token_location[0], col_offset=token_location[1])
-            else:
-                ret_val = self.handle_testlist_comp(children[1], is_comp=True)
-                if hasattr(ret_val, "lineno") and ret_val.lineno is None:
-                    ret_val.lineno, ret_val.col_offset = token_location
+                assert (isinstance(testlist_comp, tuple) and 
+                        len(testlist_comp) == 2)
+                ret_val = (ast.GeneratorExp if token_text == '(' else
+                           ast.ListComp)(
+                    testlist_comp[0], testlist_comp[1],
+                    lineno=token_location[0],
+                    col_offset=token_location[1])
         elif token_text == "{":
             if self.expr_context is not ast.Load:
                 raise NotImplementedError()
@@ -317,28 +331,9 @@ class MyHandler(object):
                     ret_val.lineno = token_location[0]
                 if 'col_offset' in attributes:
                     ret_val.col_offset = token_location[1]
-        elif token_text == "`":
-            assert children[2][0][1] == "`"
-            ret_val = ast.Repr(self.handle_node(children[1]),
-                               lineno=token_location[0],
-                               col_offset=token_location[1])
         else:
-            token_kind = children[0][0][0]
-            if token_kind == token.STRING:
-                ret_string = eval(token_text)
-                for child in children[1:]:
-                    ret_string += eval(child[0][1])
-                ret_val = ast.Str(ret_string, lineno=token_location[0],
-                                  col_offset=token_location[1])
-            elif token_kind == token.NUMBER:
-                ret_val = ast.Num(eval(token_text), lineno=token_location[0],
-                                  col_offset=token_location[1])
-            elif token_kind == token.ELLIPSIS:
-                ret_val = ast.Ellipsis(lineno=token_location[0],
-                                       col_offset=token_location[1])
-            else:
-                assert token_kind == token.NAME
-                ret_val = self._handle_name(token_text, token_location)
+            ret_val = self._handle_atom_token(token_text, token_location,
+                                              children)
         return ret_val
 
     def handle_atom_expr (self, node):
@@ -552,7 +547,7 @@ class MyHandler(object):
 
     def handle_eval_input (self, node):
         ret_val = self.handle_node(node[1][0])
-        return ret_val
+        return ast.Expression(ret_val)
 
     def handle_except_clause (self, node):
         ret_val = []
@@ -581,6 +576,10 @@ class MyHandler(object):
     def handle_expr (self, node):
         return self._handle_left_binop(node, lambda tok : ast.BitOr())
 
+    def _handle_assign (self, targets, value, location):
+        return ast.Assign(targets, value, lineno=location[0],
+                          col_offset=location[1])
+
     def handle_expr_stmt (self, node):
         children = node[1]
         if len(children) == 1:
@@ -601,6 +600,7 @@ class MyHandler(object):
             ret_val = ast.AugAssign(lhs, aug_op, rhs,
                                     lineno=location[0], col_offset=location[1])
         else:
+            # Plain old assignment...
             location = self._get_location(children[0])
             old_context = self.expr_context
             self.expr_context = ast.Store
@@ -608,8 +608,7 @@ class MyHandler(object):
                        if not self.is_token(child)]
             self.expr_context = old_context
             value = self.handle_node(children[-1])
-            ret_val = ast.Assign(targets, value,
-                                 lineno=location[0], col_offset=location[1])
+            ret_val = self._handle_assign(targets, value, location)
         return ret_val
 
     def handle_exprlist (self, node):
@@ -823,7 +822,7 @@ class MyHandler(object):
     def handle_lambdef (self, node):
         children = node[1]
         location = children[0][0][2]
-        args = ast.arguments([], None, None, [])
+        args = self._get_empty_arguments()
         if len(children) > 3:
             args = self.handle_node(children[1])
         body = self.handle_node(children[-1])
@@ -913,7 +912,7 @@ class MyHandler(object):
         if len(children) > 2:
             ret_val = self.handle_node(children[1])
         else:
-            ret_val = ast.arguments([], None, None, [])
+            ret_val = self._get_empty_arguments()
         return ret_val
 
     def handle_pass_stmt (self, node):
@@ -1016,7 +1015,8 @@ class MyHandler(object):
 
     def handle_single_input (self, node):
         child_results = self.handle_children(node)
-        return child_results
+        ret_val = ast.Interactive(child_results)
+        return ret_val
 
     def handle_sliceop (self, node):
         children = node[1]
@@ -1150,34 +1150,24 @@ class MyHandler(object):
 
     handle_testlist1 = handle_testlist
 
-    def handle_testlist_comp (self, node, *, is_comp=False):
-        return self.handle_testlist_gexp(node, is_comp=is_comp)
-
-    def handle_testlist_gexp (self, node, *, is_comp=False):
+    def handle_testlist_comp (self, node):
         children = node[1]
+        if len(children) == 0: import pudb; pudb.set_trace()
         ret_val = self.handle_node(children[0])
-        if len(children) > 1:
-            lineno, col_offset = self._get_location(children[0])
+        if len(children) == 1:
+            ret_val = [ret_val]
+        else:
             if self.is_token(children[1]):
-                # Tuple
-                tuple_elems = [ret_val] + [self.handle_node(child)
-                                           for child in children[2:]
-                                           if not self.is_token(child)]
-                ret_val = ast.Tuple(tuple_elems, self.expr_context(),
-                                    lineno=lineno, col_offset=col_offset)
+                # Tuple or List
+                ret_val = [ret_val] + [self.handle_node(child)
+                                       for child in children[2:]
+                                       if not self.is_token(child)]
             else:
-                # Generator
+                # Generator or Comprehension
                 assert len(children) == 2
                 if_exprs, comprehensions = self.handle_node(children[1])
                 assert len(if_exprs) == 0
-                if is_comp:
-                    ret_val = ast.ListComp(ret_val, comprehensions,
-                                           lineno=lineno,
-                                           col_offset=col_offset)
-                else:
-                    ret_val = ast.GeneratorExp(ret_val, comprehensions,
-                                               lineno=lineno,
-                                               col_offset=col_offset)
+                ret_val = ret_val, comprehensions
         return ret_val
 
     # This is cool, since testlist_safe and testlist still have the same shape.

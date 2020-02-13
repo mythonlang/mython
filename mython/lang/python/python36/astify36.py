@@ -61,8 +61,8 @@ class My36Handler(MyHandler):
                 ret_val = ast.SetComp(elt, generators)
             else:
                 elts = [elt]
-                for index in range(1, child_count, 3):
-                    elts.append(self.handle_node(children[index + 1]))
+                for index in range(2, child_count, 2):
+                    elts.append(self.handle_node(children[index]))
                 ret_val = ast.Set(elts)
         return ret_val
 
@@ -126,7 +126,7 @@ class My36Handler(MyHandler):
         return ast.Try(body, handlers, orelse, finalbody, lineno=location[0],
                        col_offset=location[1])
 
-    def handle_typedargslist(self, node):
+    def _handle_typedargslist(self, node):
         children = node[1]
         child_count = len(children)
         index = 0
@@ -180,8 +180,10 @@ class My36Handler(MyHandler):
             if index < child_count and children[index][0] == 'tfpdef':
                 kwarg = self.handle_tfpdef(children[index])
                 index += 1
-        return ast.arguments(args, vararg, kwonlyargs, kw_defaults, kwarg,
-                             defaults)
+        return args, vararg, kwonlyargs, kw_defaults, kwarg, defaults
+
+    def handle_typedargslist(self, node):
+        return ast.arguments(*self._handle_typedargslist(node))
 
     def handle_with_item(self, node):
         context_expr, optional_vars = super().handle_with_item(node)
