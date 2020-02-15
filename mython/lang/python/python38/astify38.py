@@ -27,6 +27,8 @@ class My38Handler (My37Handler):
             ret_val = self._handle_name(token_text, token_location)
         return ret_val
 
+    _handle_seq_location = lambda _0, _1, initial_location: initial_location
+
     def _get_empty_arguments(self):
         return ast.arguments([], [], None, [], [], None, [])
 

@@ -294,45 +294,54 @@ class MyHandler(object):
                         lineno=token_location[0],
                         col_offset=token_location[1])
 
+    def _handle_seq_location (self, node, initial_location):
+        '''Abstracting this calculation because earlier versions of Python
+        have a different location calculation than modern Python.
+        '''
+        return (self._get_location(node[1][1])
+                if len(node[1]) > 1 else
+                initial_location)
+
     def handle_atom (self, node):
         ret_val = None
         children = node[1]
-        assert self.is_token(children[0])
+        assert self.is_token(children[0]) and len(children)
         token_text = children[0][0][1]
-        token_location = children[0][0][2]
+        location = children[0][0][2]
         if token_text in {"(", "["}:
             testlist_comp = []
             if self.is_token(children[1]) and children[1][0][1] in {")", "]"}:
                 assert self.expr_context is ast.Load
             else:
+                location = self._handle_seq_location(node, location)
                 testlist_comp = self.handle_testlist_comp(children[1])
             if isinstance(testlist_comp, list):
                 ret_val = (ast.Tuple if token_text == '(' else ast.List)(
                     testlist_comp, self.expr_context(),
-                    lineno=token_location[0], col_offset=token_location[1])
+                    lineno=location[0], col_offset=location[1])
             else:
                 assert (isinstance(testlist_comp, tuple) and 
                         len(testlist_comp) == 2)
                 ret_val = (ast.GeneratorExp if token_text == '(' else
                            ast.ListComp)(
                     testlist_comp[0], testlist_comp[1],
-                    lineno=token_location[0],
-                    col_offset=token_location[1])
+                    lineno=location[0],
+                    col_offset=location[1])
         elif token_text == "{":
             if self.expr_context is not ast.Load:
                 raise NotImplementedError()
             if self.is_token(children[1]) and children[1][0][1] == "}":
-                ret_val = ast.Dict([], [], lineno=token_location[0],
-                                   col_offset=token_location[1])
+                ret_val = ast.Dict([], [], lineno=location[0],
+                                   col_offset=location[1])
             else:
                 ret_val = self.handle_node(children[1])
                 attributes = getattr(ret_val, '_attributes', ())
                 if 'lineno' in attributes:
-                    ret_val.lineno = token_location[0]
+                    ret_val.lineno = location[0]
                 if 'col_offset' in attributes:
-                    ret_val.col_offset = token_location[1]
+                    ret_val.col_offset = location[1]
         else:
-            ret_val = self._handle_atom_token(token_text, token_location,
+            ret_val = self._handle_atom_token(token_text, location,
                                               children)
         return ret_val
 
@@ -469,7 +478,6 @@ class MyHandler(object):
         ret_val = self.handle_node(children[1])
         child_count = len(children)
         if child_count > 3:
-            location = children[0][0][2]
             args = [ret_val]
             if child_count > 5:
                 args += self.handle_node(children[3])[:2]

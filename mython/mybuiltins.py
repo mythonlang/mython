@@ -72,7 +72,7 @@ def myeval(code, env = None):
         env0 = env.copy()
         start_symbol = env0.get('start_symbol')
         env0['start_symbol'] = 'eval_input'
-        pyast, env1 = env.get('myfrontend', myfrontend)(code, env0)
+        pyast, env1 = env0.get('myfrontend', myfrontend)(code, env0)
         env1['start_symbol'] = start_symbol
     else:
         assert isinstance(code, _pyast.AST)
