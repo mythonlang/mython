@@ -23,7 +23,7 @@ class My37Handler (My36Handler):
     def handle_comp_for(self, node):
         children = node[1]
         ret_val = self.handle_node(children[-1])
-        ret_val[1][0].is_async = len(children) > 1
+        ret_val[1][0].is_async = 1 if len(children) > 1 else 0
         return ret_val
 
     handle_sync_comp_for = My36Handler._handle_comp_for

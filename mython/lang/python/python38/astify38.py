@@ -3,6 +3,10 @@ from ..python37.astify37 import My37Handler, ast
 
 
 class My38Handler (My37Handler):
+    _decorated_offset = 1
+    _elif_offset = 0
+    _genexp_fix = True
+
     def _handle_assign(self, targets, value, location):
         # FIXME: Figure out type comments.
         return ast.Assign(targets, value, None, lineno=location[0],
@@ -31,12 +35,6 @@ class My38Handler (My37Handler):
 
     def _get_empty_arguments(self):
         return ast.arguments([], [], None, [], [], None, [])
-
-    #def handle_atom(self, node):
-    #    ret_val = super().handle_atom(node)
-    #    if isinstance(ret_val, (ast.Tuple, ast.List)):
-    #        ret_val.lineno, ret_val.col_offset = node[1][0][0][2]
-    #    return ret_val
 
     def handle_for_stmt(self, node):
         ret_val = super().handle_for_stmt(node)
@@ -108,3 +106,11 @@ class My38Handler (My37Handler):
         # arguments = (arg* posonlyargs, arg* args, arg? vararg, arg* kwonlyargs,
         #              expr* kw_defaults, arg? kwarg, expr* defaults)
         return ast.arguments(posonlyargs, *remaining_args)
+
+    def handle_with_stmt(self, node):
+        children = node[1]
+        location = children[0][0][2]
+        items = [self.handle_with_item(child) for child in children[1:-1:2]]
+        type_comment = None # FIXME
+        return ast.With(items, self.handle_suite(children[-1]), type_comment,
+                        lineno=location[0], col_offset=location[1])

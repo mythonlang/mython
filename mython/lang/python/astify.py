@@ -19,6 +19,9 @@ import token
 # Class definition
 
 class MyHandler(object):
+    _decorated_offset = 0
+    _elif_offset = 1
+
     def __init__ (self, *args, **kws):
         self.expr_context = ast.Load
 
@@ -217,7 +220,7 @@ class MyHandler(object):
                 if_exprs, comprehensions = self.handle_node(children[1])
                 assert len(if_exprs) == 0
                 ret_val = ast.GeneratorExp(
-                    target, comprehensions, 
+                    target, comprehensions,
                     lineno=location[0], col_offset=location[1])
         return ret_val
 
@@ -470,7 +473,8 @@ class MyHandler(object):
         children = node[1]
         ret_val = self.handle_node(children[1])
         ret_val.decorator_list = self.handle_node(children[0])
-        ret_val.lineno, ret_val.col_offset = self._get_location(children[0])
+        location_node = children[self._decorated_offset]
+        ret_val.lineno, ret_val.col_offset = self._get_location(location_node)
         return ret_val
 
     def handle_decorator (self, node):
@@ -478,13 +482,25 @@ class MyHandler(object):
         ret_val = self.handle_node(children[1])
         child_count = len(children)
         if child_count > 3:
-            args = [ret_val]
+            ctor_args = [ret_val]
             if child_count > 5:
-                args += self.handle_node(children[3])[:2]
+                args, keywords = self.handle_arglist(children[3])[:2]
+                args_len = len(args)
+                if args_len > 0 and isinstance(args[0], ast.GeneratorExp):
+                    if args_len == 1:
+                        first_arg = args[0]
+                        if getattr(self, '_genexp_fix', False):
+                            open_paren_location = children[2][0][2]
+                            (first_arg.lineno,
+                             first_arg.col_offset) = open_paren_location
+                    else:
+                        # FIXME
+                        raise SyntaxError()
+                ctor_args += [args, keywords]
             else:
-                args += [[], []]
-            ret_val = ast.Call(*args, lineno=args[0].lineno,
-                               col_offset=args[0].col_offset)
+                ctor_args += [[], []]
+            ret_val = ast.Call(*ctor_args, lineno=ctor_args[0].lineno,
+                               col_offset=ctor_args[0].col_offset)
         return ret_val
 
     handle_decorators = handle_children
@@ -756,9 +772,9 @@ class MyHandler(object):
         child_index = 4
         while ((child_index < len(children)) and
                (children[child_index][0][1] == "elif")):
-            # XXX Another questionable location source (I would have
-            # used the elif token location...)
-            elifs.append((self._get_location(children[child_index + 1]),
+            # This offset goes to a more proper 0 in 3.8 and later.
+            elifs.append((self._get_location(children[child_index +
+                                                      self._elif_offset]),
                           self.handle_node(children[child_index + 1]),
                           self.handle_node(children[child_index + 3])))
             child_index += 4
@@ -930,7 +946,7 @@ class MyHandler(object):
         return ast.Pass(lineno=location[0], col_offset=location[1])
 
     def _process_trailer (self, value, trailer, location):
-        ret_val = self.handle_node(trailer)
+        ret_val = self.handle_trailer(trailer)
         if hasattr(ret_val, "value"):
             ret_val.value = value
         elif hasattr(ret_val, "func"):
@@ -1160,7 +1176,6 @@ class MyHandler(object):
 
     def handle_testlist_comp (self, node):
         children = node[1]
-        if len(children) == 0: import pudb; pudb.set_trace()
         ret_val = self.handle_node(children[0])
         if len(children) == 1:
             ret_val = [ret_val]
@@ -1201,10 +1216,15 @@ class MyHandler(object):
         token_text = token_data[1]
         lineno, col_offset = token_data[2]
         if token_text == "(":
-            call_args = [[], [], None, None]
             if len(children) == 3:
-                call_args = self.handle_node(children[1])
-            ret_val = ast.Call(None, call_args[0], call_args[1])
+                args, keywords, _, _ = self.handle_node(children[1])
+            else:
+                args = []
+                keywords = []
+            if len(args) > 1 and isinstance(args[0], ast.GeneratorExp):
+                # FIXME
+                raise SyntaxError()
+            ret_val = ast.Call(None, args, keywords)
         elif token_text == "[":
             old_context = self.expr_context
             self.expr_context = ast.Load
