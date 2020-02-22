@@ -322,14 +322,15 @@ class MyHandler(object):
                 ret_val = (ast.Tuple if token_text == '(' else ast.List)(
                     testlist_comp, self.expr_context(),
                     lineno=location[0], col_offset=location[1])
-            else:
-                assert (isinstance(testlist_comp, tuple) and 
-                        len(testlist_comp) == 2)
+            elif isinstance(testlist_comp, tuple):
+                assert (len(testlist_comp) == 2)
                 ret_val = (ast.GeneratorExp if token_text == '(' else
                            ast.ListComp)(
                     testlist_comp[0], testlist_comp[1],
                     lineno=location[0],
                     col_offset=location[1])
+            else:
+                ret_val = testlist_comp
         elif token_text == "{":
             if self.expr_context is not ast.Load:
                 raise NotImplementedError()
@@ -904,7 +905,16 @@ class MyHandler(object):
         if len(children) == 1:
             ret_val = self.handle_node(children[0])
         else:
-            raise NotImplementedError()
+            # FIXME: This is only hacked enough to get the current 3.8
+            # astification tests working.  There are still unhandled corner
+            # cases...
+            old_context = self.expr_context
+            self.expr_context = ast.Store
+            target = self.handle_node(children[0])
+            self.expr_context = old_context
+            value = self.handle_node(children[-1])
+            ret_val = ast.NamedExpr(target, value, lineno=target.lineno,
+                                    col_offset=target.col_offset)
         return ret_val
 
     def handle_nonlocal_stmt (self, node):
@@ -1177,9 +1187,7 @@ class MyHandler(object):
     def handle_testlist_comp (self, node):
         children = node[1]
         ret_val = self.handle_node(children[0])
-        if len(children) == 1:
-            ret_val = [ret_val]
-        else:
+        if len(children) > 1:
             if self.is_token(children[1]):
                 # Tuple or List
                 ret_val = [ret_val] + [self.handle_node(child)

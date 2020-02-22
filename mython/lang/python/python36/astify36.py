@@ -152,9 +152,9 @@ class My36Handler(MyHandler):
             if index < child_count and children[index][0] == 'tfpdef':
                 vararg = self.handle_tfpdef(children[index])
                 index += 1
-                if (index < child_count and
-                    children[index][0][0] == token.COMMA):
-                    index += 1
+            if (index < child_count and
+                children[index][0][0] == token.COMMA):
+                index += 1
         # Collect kwonlyargs
         kwonlyargs = []
         kw_defaults = []
@@ -172,6 +172,8 @@ class My36Handler(MyHandler):
                 if (index < child_count and
                     children[index][0][0] == token.COMMA):
                     index += 1
+            else:
+                kw_defaults.append(None)
         # Collect kwarg
         kwarg = None
         if (index < child_count):

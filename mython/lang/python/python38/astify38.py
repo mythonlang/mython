@@ -95,8 +95,18 @@ class My38Handler (My37Handler):
         # Collect positional arguments
         posonlyargs = []
         defaults = []
-        while index < posonlyargs_index:
-            import pudb; pudb.set_trace()
+        if posonlyargs_index > 0:
+            while index < posonlyargs_index:
+                posonlyargs.append(self.handle_node(children[index]))
+                index += 1
+                assert self.is_token(children[index])
+                if children[index][0][1] == '=':
+                    index += 1
+                    defaults.append(self.handle_node(children[index]))
+                    index += 2
+                else:
+                    index += 1
+            index += 2 # Skip the / and , tokens
         # Get the rest...
         remaining_args = list(self._handle_typedargslist(
             ('bogus', children[index:])))
@@ -105,7 +115,8 @@ class My38Handler (My37Handler):
         # Reminder:
         # arguments = (arg* posonlyargs, arg* args, arg? vararg, arg* kwonlyargs,
         #              expr* kw_defaults, arg? kwarg, expr* defaults)
-        return ast.arguments(posonlyargs, *remaining_args)
+        ret_val = ast.arguments(posonlyargs, *remaining_args)
+        return ret_val
 
     def handle_with_stmt(self, node):
         children = node[1]
